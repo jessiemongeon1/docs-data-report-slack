@@ -28,7 +28,8 @@ jobs:
       - name: Run report pipeline
         env:
           PLAUSIBLE_API_KEY: ${{ secrets.PLAUSIBLE_API_KEY }}
-          KAPA_API_KEY: ${{ secrets.KAPA_API_KEY }}
+          KAPA_API_KEY_SUI: ${{ secrets.KAPA_API_KEY_SUI }}
+          KAPA_API_KEY_WALRUS: ${{ secrets.KAPA_API_KEY_WALRUS }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
           SITES_JSON: ${{ secrets.SITES_JSON }}
