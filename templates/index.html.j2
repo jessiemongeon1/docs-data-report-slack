@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Weekly docs analytics index</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 40px; color: #1f2937; }
+    .card { border: 1px solid #e5e7eb; border-radius: 8px; padding: 16px; margin: 16px 0; }
+    a { color: #2563eb; }
+  </style>
+</head>
+<body>
+  <h1>Weekly docs analytics index</h1>
+  <p>{{ start_date }} to {{ end_date }} · run {{ run_id }}</p>
+  {% for site in site_reports %}
+  <div class="card">
+    <h2>{{ site.site_name }}</h2>
+    <p>{{ site.final_analysis.executive_summary.summary }}</p>
+    <p><a href="{{ site.report_filename }}">Open full report</a></p>
+  </div>
+  {% endfor %}
+</body>
+</html>

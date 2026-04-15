@@ -1,0 +1,45 @@
+[
+  {
+    "type": "header",
+    "text": {
+      "type": "plain_text",
+      "text": "Weekly docs analytics"
+    }
+  },
+  {
+    "type": "section",
+    "text": {
+      "type": "mrkdwn",
+      "text": "*Window:* {{ start_date }} to {{ end_date }}"
+    }
+  }
+  {% for site in site_reports %}
+  ,{
+    "type": "section",
+    "text": {
+      "type": "mrkdwn",
+      "text": "*{{ site.site_name }}*\n{{ site.final_analysis.executive_summary.summary | replace('\n', ' ') }}"
+    }
+  }
+  ,{
+    "type": "section",
+    "text": {
+      "type": "mrkdwn",
+      "text": "{% for item in site.final_analysis.executive_summary.top_priorities[:3] %}• {{ item }}{% if not loop.last %}\n{% endif %}{% endfor %}"
+    }
+  }
+  ,{
+    "type": "actions",
+    "elements": [
+      {
+        "type": "button",
+        "text": {
+          "type": "plain_text",
+          "text": "Open full report"
+        },
+        "url": "{{ site.report_url }}"
+      }
+    ]
+  }
+  {% endfor %}
+]

@@ -1,0 +1,9 @@
+<h2>{{ site_name }} weekly analytics report</h2>
+<p>{{ start_date }} to {{ end_date }}</p>
+<p>{{ final_analysis.executive_summary.summary }}</p>
+<h3>Top priorities</h3>
+<ul>
+  {% for item in final_analysis.executive_summary.top_priorities %}
+  <li>{{ item }}</li>
+  {% endfor %}
+</ul>
