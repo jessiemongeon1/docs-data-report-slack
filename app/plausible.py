@@ -23,13 +23,14 @@ class PlausibleClient:
             json={"site_id": self.site_id, **payload},
             timeout=90,
         )
-        # Helpful error output from Plausible
+
         try:
             response.raise_for_status()
         except requests.HTTPError as e:
             raise requests.HTTPError(
                 f"Plausible API error {response.status_code}: {response.text}"
             ) from e
+
         return response.json()
 
     @staticmethod
@@ -37,14 +38,10 @@ class PlausibleClient:
         return datetime.strptime(value, "%Y-%m-%d").date()
 
     def fetch_weekly_bundle(self, start_date: str, end_date: str) -> dict[str, Any]:
-        # 7-day window passed in from main.py
         start = self._parse_iso_date(start_date)
         end = self._parse_iso_date(end_date)
 
-        # Previous 14-day window ending on end_date
         start_14d = end - timedelta(days=13)
-
-        # Previous 30-day window ending on end_date
         start_30d = end - timedelta(days=29)
 
         summary_metrics = [
