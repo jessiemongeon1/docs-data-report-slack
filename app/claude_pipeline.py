@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import math
 import re
 from typing import Any
 
@@ -29,8 +30,43 @@ Do not include markdown fences.
 Do not include commentary outside JSON.
 """.strip()
 
-KAPA_SYSTEM = """
-You analyze raw Kapa JSON.
+KAPA_CHUNK_SYSTEM = """
+You analyze one raw chunk of Kapa JSON.
+
+This chunk is only part of the full dataset.
+Do not assume it represents the whole reporting period.
+
+Return valid JSON only with this shape:
+{
+  "chunk_summary": "string",
+  "themes": [
+    {
+      "name": "string",
+      "evidence_count": 0,
+      "examples": ["string"],
+      "insight": "string",
+      "recommended_action": "string"
+    }
+  ],
+  "notable_threads": [
+    {
+      "title": "string",
+      "insight": "string",
+      "recommended_action": "string"
+    }
+  ],
+  "open_questions": ["string"]
+}
+Do not include markdown fences.
+Do not include commentary outside JSON.
+""".strip()
+
+KAPA_SYNTHESIS_SYSTEM = """
+You synthesize multiple chunk-level analyses of raw Kapa JSON into one weekly Kapa analysis.
+
+Each chunk analysis came from a separate subset of the raw Kapa dataset.
+Merge repeated themes across chunks.
+Prefer recurring issues over one-off issues.
 
 Return valid JSON only with this shape:
 {
@@ -124,11 +160,9 @@ class ClaudePipeline:
         if not text:
             raise ValueError("Claude returned empty text")
 
-        # happy path
         if text.startswith("{") or text.startswith("["):
             return text
 
-        # try to find first JSON object/array in surrounding prose
         obj_start = text.find("{")
         arr_start = text.find("[")
         starts = [i for i in [obj_start, arr_start] if i != -1]
@@ -138,14 +172,12 @@ class ClaudePipeline:
         start = min(starts)
         candidate = text[start:].strip()
 
-        # try full tail first
         try:
             json.loads(candidate)
             return candidate
         except json.JSONDecodeError:
             pass
 
-        # fallback: greedy brace extraction for object
         if candidate.startswith("{"):
             depth = 0
             for i, ch in enumerate(candidate):
@@ -156,7 +188,6 @@ class ClaudePipeline:
                     if depth == 0:
                         return candidate[: i + 1]
 
-        # fallback: greedy bracket extraction for array
         if candidate.startswith("["):
             depth = 0
             for i, ch in enumerate(candidate):
@@ -191,6 +222,33 @@ Previous invalid output:
         repaired_json = self._extract_json_object(repaired_text)
         return json.loads(repaired_json)
 
+    def _estimate_tokens(self, payload: dict[str, Any]) -> int:
+        # Rough estimate: 1 token ~= 4 chars.
+        text = json.dumps(payload, ensure_ascii=False)
+        return math.ceil(len(text) / 4)
+
+    def _chunk_list(self, items: list[Any], target_tokens: int) -> list[list[Any]]:
+        chunks: list[list[Any]] = []
+        current: list[Any] = []
+        current_size = 0
+
+        for item in items:
+            item_text = json.dumps(item, ensure_ascii=False)
+            item_tokens = max(1, math.ceil(len(item_text) / 4))
+
+            if current and current_size + item_tokens > target_tokens:
+                chunks.append(current)
+                current = [item]
+                current_size = item_tokens
+            else:
+                current.append(item)
+                current_size += item_tokens
+
+        if current:
+            chunks.append(current)
+
+        return chunks
+
     def message_json(self, system_prompt: str, payload: dict[str, Any]) -> dict[str, Any]:
         user_content = json.dumps(payload, ensure_ascii=False)
 
@@ -212,9 +270,120 @@ Previous invalid output:
         payload = {"source": "plausible", "raw": plausible_raw}
         return self.message_json(PLAUSIBLE_SYSTEM, payload)
 
+    def _build_kapa_chunks(self, kapa_raw: dict[str, Any]) -> list[dict[str, Any]]:
+        # Keep raw structure, but split the largest collections.
+        question_answers = kapa_raw.get("question_answers", [])
+        threads = kapa_raw.get("threads", {})
+        end_users = kapa_raw.get("end_users", {})
+
+        # Normalize QA payload to a list if possible.
+        qa_items: list[Any]
+        if isinstance(question_answers, list):
+            qa_items = question_answers
+        elif isinstance(question_answers, dict):
+            # common API patterns
+            if isinstance(question_answers.get("results"), list):
+                qa_items = question_answers["results"]
+            elif isinstance(question_answers.get("data"), list):
+                qa_items = question_answers["data"]
+            else:
+                qa_items = [question_answers]
+        else:
+            qa_items = [question_answers]
+
+        thread_items: list[Any]
+        if isinstance(threads, dict):
+            # thread map -> list of objects
+            if all(isinstance(v, dict) for v in threads.values()):
+                thread_items = [{"thread_id": k, **v} for k, v in threads.items()]
+            else:
+                thread_items = [threads]
+        elif isinstance(threads, list):
+            thread_items = threads
+        else:
+            thread_items = [threads]
+
+        # Most of the size is usually in question_answers or threads.
+        target_tokens = min(120000, max(30000, self.max_input_tokens - 10000))
+
+        qa_chunks = self._chunk_list(qa_items, target_tokens)
+        thread_chunks = self._chunk_list(thread_items, target_tokens)
+
+        chunks: list[dict[str, Any]] = []
+
+        if qa_items:
+            for i, chunk in enumerate(qa_chunks, start=1):
+                chunks.append(
+                    {
+                        "source": "kapa",
+                        "chunk_type": "question_answers",
+                        "chunk_index": i,
+                        "chunk_count": len(qa_chunks),
+                        "project_id": kapa_raw.get("project_id"),
+                        "raw": {
+                            "question_answers": chunk,
+                        },
+                    }
+                )
+
+        if thread_items and thread_items != [{}]:
+            for i, chunk in enumerate(thread_chunks, start=1):
+                chunks.append(
+                    {
+                        "source": "kapa",
+                        "chunk_type": "threads",
+                        "chunk_index": i,
+                        "chunk_count": len(thread_chunks),
+                        "project_id": kapa_raw.get("project_id"),
+                        "raw": {
+                            "threads": chunk,
+                        },
+                    }
+                )
+
+        # Keep lighter metadata together in one extra chunk.
+        meta_chunk = {
+            "source": "kapa",
+            "chunk_type": "metadata",
+            "chunk_index": 1,
+            "chunk_count": 1,
+            "project_id": kapa_raw.get("project_id"),
+            "raw": {
+                "project_id": kapa_raw.get("project_id"),
+                "thread_ids_discovered": kapa_raw.get("thread_ids_discovered", []),
+                "end_users": end_users,
+            },
+        }
+        chunks.append(meta_chunk)
+
+        return chunks
+
     def analyze_kapa_raw(self, kapa_raw: dict[str, Any]) -> dict[str, Any]:
-        payload = {"source": "kapa", "raw": kapa_raw}
-        return self.message_json(KAPA_SYSTEM, payload)
+        estimated = self._estimate_tokens({"source": "kapa", "raw": kapa_raw})
+
+        if estimated <= self.max_input_tokens:
+            return self.message_json(KAPA_SYNTHESIS_SYSTEM, {"source": "kapa", "raw": kapa_raw})
+
+        chunk_payloads = self._build_kapa_chunks(kapa_raw)
+        chunk_analyses: list[dict[str, Any]] = []
+
+        for chunk in chunk_payloads:
+            chunk_analysis = self.message_json(KAPA_CHUNK_SYSTEM, chunk)
+            chunk_analyses.append(
+                {
+                    "chunk_type": chunk["chunk_type"],
+                    "chunk_index": chunk["chunk_index"],
+                    "chunk_count": chunk["chunk_count"],
+                    "analysis": chunk_analysis,
+                }
+            )
+
+        synthesis_payload = {
+            "source": "kapa",
+            "project_id": kapa_raw.get("project_id"),
+            "chunk_analyses": chunk_analyses,
+        }
+        return self.message_json(KAPA_SYNTHESIS_SYSTEM, synthesis_payload)
 
     def synthesize(
         self,
