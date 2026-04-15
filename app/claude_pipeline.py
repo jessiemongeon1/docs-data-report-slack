@@ -1,11 +1,11 @@
 from __future__ import annotations
 
 import json
-import math
 import re
+import time
 from typing import Any
 
-from anthropic import Anthropic
+from anthropic import Anthropic, RateLimitError
 
 PLAUSIBLE_SYSTEM = """
 You analyze raw Plausible analytics JSON.
@@ -136,7 +136,7 @@ Do not include commentary outside JSON.
 
 
 class ClaudePipeline:
-    def __init__(self, api_key: str, model: str, max_input_tokens: int = 120000) -> None:
+    def __init__(self, api_key: str, model: str, max_input_tokens: int = 12000) -> None:
         self.client = Anthropic(api_key=api_key)
         self.model = model
         self.max_input_tokens = max_input_tokens
@@ -200,6 +200,42 @@ class ClaudePipeline:
 
         return candidate
 
+    def _sleep_from_rate_limit(self, exc: RateLimitError) -> None:
+        retry_after = None
+        response = getattr(exc, "response", None)
+        headers = getattr(response, "headers", None)
+        if headers:
+            retry_after = headers.get("retry-after")
+
+        if retry_after:
+            try:
+                time.sleep(float(retry_after) + 1.0)
+                return
+            except ValueError:
+                pass
+
+        time.sleep(20)
+
+    def _messages_create_with_retry(self, **kwargs: Any) -> Any:
+        attempts = 0
+        while True:
+            attempts += 1
+            try:
+                return self.client.messages.create(**kwargs)
+            except RateLimitError as exc:
+                if attempts >= 6:
+                    raise
+                self._sleep_from_rate_limit(exc)
+
+    def _count_tokens(self, system_prompt: str, payload: dict[str, Any]) -> int:
+        user_content = json.dumps(payload, ensure_ascii=False)
+        resp = self.client.messages.count_tokens(
+            model=self.model,
+            system=system_prompt,
+            messages=[{"role": "user", "content": user_content}],
+        )
+        return resp.input_tokens
+
     def _repair_json(self, system_prompt: str, bad_text: str) -> dict[str, Any]:
         repair_prompt = f"""
 Your previous response was not valid JSON.
@@ -212,7 +248,7 @@ Previous invalid output:
 {bad_text[:12000]}
 """.strip()
 
-        response = self.client.messages.create(
+        response = self._messages_create_with_retry(
             model=self.model,
             max_tokens=3000,
             system=system_prompt,
@@ -222,39 +258,12 @@ Previous invalid output:
         repaired_json = self._extract_json_object(repaired_text)
         return json.loads(repaired_json)
 
-    def _estimate_tokens(self, payload: dict[str, Any]) -> int:
-        # Rough estimate: 1 token ~= 4 chars.
-        text = json.dumps(payload, ensure_ascii=False)
-        return math.ceil(len(text) / 4)
-
-    def _chunk_list(self, items: list[Any], target_tokens: int) -> list[list[Any]]:
-        chunks: list[list[Any]] = []
-        current: list[Any] = []
-        current_size = 0
-
-        for item in items:
-            item_text = json.dumps(item, ensure_ascii=False)
-            item_tokens = max(1, math.ceil(len(item_text) / 4))
-
-            if current and current_size + item_tokens > target_tokens:
-                chunks.append(current)
-                current = [item]
-                current_size = item_tokens
-            else:
-                current.append(item)
-                current_size += item_tokens
-
-        if current:
-            chunks.append(current)
-
-        return chunks
-
     def message_json(self, system_prompt: str, payload: dict[str, Any]) -> dict[str, Any]:
         user_content = json.dumps(payload, ensure_ascii=False)
 
-        response = self.client.messages.create(
+        response = self._messages_create_with_retry(
             model=self.model,
-            max_tokens=4000,
+            max_tokens=2500,
             system=system_prompt,
             messages=[{"role": "user", "content": user_content}],
         )
@@ -270,103 +279,127 @@ Previous invalid output:
         payload = {"source": "plausible", "raw": plausible_raw}
         return self.message_json(PLAUSIBLE_SYSTEM, payload)
 
-    def _build_kapa_chunks(self, kapa_raw: dict[str, Any]) -> list[dict[str, Any]]:
-        # Keep raw structure, but split the largest collections.
-        question_answers = kapa_raw.get("question_answers", [])
-        threads = kapa_raw.get("threads", {})
-        end_users = kapa_raw.get("end_users", {})
-
-        # Normalize QA payload to a list if possible.
-        qa_items: list[Any]
+    def _normalize_qa_items(self, question_answers: Any) -> list[Any]:
         if isinstance(question_answers, list):
-            qa_items = question_answers
-        elif isinstance(question_answers, dict):
-            # common API patterns
+            return question_answers
+        if isinstance(question_answers, dict):
             if isinstance(question_answers.get("results"), list):
-                qa_items = question_answers["results"]
-            elif isinstance(question_answers.get("data"), list):
-                qa_items = question_answers["data"]
-            else:
-                qa_items = [question_answers]
-        else:
-            qa_items = [question_answers]
+                return question_answers["results"]
+            if isinstance(question_answers.get("data"), list):
+                return question_answers["data"]
+            return [question_answers]
+        return [question_answers]
 
-        thread_items: list[Any]
+    def _normalize_thread_items(self, threads: Any) -> list[Any]:
         if isinstance(threads, dict):
-            # thread map -> list of objects
             if all(isinstance(v, dict) for v in threads.values()):
-                thread_items = [{"thread_id": k, **v} for k, v in threads.items()]
+                return [{"thread_id": k, **v} for k, v in threads.items()]
+            return [threads]
+        if isinstance(threads, list):
+            return threads
+        return [threads]
+
+    def _chunk_items_by_token_count(
+        self,
+        items: list[Any],
+        system_prompt: str,
+        base_payload: dict[str, Any],
+        field_name: str,
+        target_tokens: int,
+    ) -> list[dict[str, Any]]:
+        chunks: list[dict[str, Any]] = []
+        current_items: list[Any] = []
+
+        for item in items:
+            tentative = {**base_payload, "raw": {field_name: current_items + [item]}}
+            tokens = self._count_tokens(system_prompt, tentative)
+
+            if current_items and tokens > target_tokens:
+                chunks.append({**base_payload, "raw": {field_name: current_items}})
+                current_items = [item]
             else:
-                thread_items = [threads]
-        elif isinstance(threads, list):
-            thread_items = threads
-        else:
-            thread_items = [threads]
+                current_items.append(item)
 
-        # Most of the size is usually in question_answers or threads.
-        target_tokens = min(120000, max(30000, self.max_input_tokens - 10000))
+        if current_items:
+            chunks.append({**base_payload, "raw": {field_name: current_items}})
 
-        qa_chunks = self._chunk_list(qa_items, target_tokens)
-        thread_chunks = self._chunk_list(thread_items, target_tokens)
+        return chunks
+
+    def _build_kapa_chunks(self, kapa_raw: dict[str, Any]) -> list[dict[str, Any]]:
+        qa_items = self._normalize_qa_items(kapa_raw.get("question_answers", []))
+        thread_items = self._normalize_thread_items(kapa_raw.get("threads", {}))
+        end_users = kapa_raw.get("end_users", {})
+        project_id = kapa_raw.get("project_id")
+
+        # Stay well under the org's 30k ITPM cap.
+        target_tokens = min(self.max_input_tokens, 10000)
 
         chunks: list[dict[str, Any]] = []
 
-        if qa_items:
-            for i, chunk in enumerate(qa_chunks, start=1):
-                chunks.append(
-                    {
-                        "source": "kapa",
-                        "chunk_type": "question_answers",
-                        "chunk_index": i,
-                        "chunk_count": len(qa_chunks),
-                        "project_id": kapa_raw.get("project_id"),
-                        "raw": {
-                            "question_answers": chunk,
-                        },
-                    }
-                )
+        qa_base = {
+            "source": "kapa",
+            "chunk_type": "question_answers",
+            "project_id": project_id,
+        }
+        qa_chunks = self._chunk_items_by_token_count(
+            qa_items,
+            KAPA_CHUNK_SYSTEM,
+            qa_base,
+            "question_answers",
+            target_tokens,
+        )
+        for i, chunk in enumerate(qa_chunks, start=1):
+            chunk["chunk_index"] = i
+            chunk["chunk_count"] = len(qa_chunks)
+            chunks.append(chunk)
 
         if thread_items and thread_items != [{}]:
+            thread_base = {
+                "source": "kapa",
+                "chunk_type": "threads",
+                "project_id": project_id,
+            }
+            thread_chunks = self._chunk_items_by_token_count(
+                thread_items,
+                KAPA_CHUNK_SYSTEM,
+                thread_base,
+                "threads",
+                target_tokens,
+            )
             for i, chunk in enumerate(thread_chunks, start=1):
-                chunks.append(
-                    {
-                        "source": "kapa",
-                        "chunk_type": "threads",
-                        "chunk_index": i,
-                        "chunk_count": len(thread_chunks),
-                        "project_id": kapa_raw.get("project_id"),
-                        "raw": {
-                            "threads": chunk,
-                        },
-                    }
-                )
+                chunk["chunk_index"] = i
+                chunk["chunk_count"] = len(thread_chunks)
+                chunks.append(chunk)
 
-        # Keep lighter metadata together in one extra chunk.
         meta_chunk = {
             "source": "kapa",
             "chunk_type": "metadata",
             "chunk_index": 1,
             "chunk_count": 1,
-            "project_id": kapa_raw.get("project_id"),
+            "project_id": project_id,
             "raw": {
-                "project_id": kapa_raw.get("project_id"),
+                "project_id": project_id,
                 "thread_ids_discovered": kapa_raw.get("thread_ids_discovered", []),
                 "end_users": end_users,
             },
         }
-        chunks.append(meta_chunk)
+        if self._count_tokens(KAPA_CHUNK_SYSTEM, meta_chunk) <= target_tokens:
+            chunks.append(meta_chunk)
 
         return chunks
 
     def analyze_kapa_raw(self, kapa_raw: dict[str, Any]) -> dict[str, Any]:
-        estimated = self._estimate_tokens({"source": "kapa", "raw": kapa_raw})
+        initial_payload = {"source": "kapa", "raw": kapa_raw}
+        initial_tokens = self._count_tokens(KAPA_SYNTHESIS_SYSTEM, initial_payload)
 
-        if estimated <= self.max_input_tokens:
-            return self.message_json(KAPA_SYNTHESIS_SYSTEM, {"source": "kapa", "raw": kapa_raw})
+        if initial_tokens <= self.max_input_tokens:
+            return self.message_json(KAPA_SYNTHESIS_SYSTEM, initial_payload)
 
         chunk_payloads = self._build_kapa_chunks(kapa_raw)
-        chunk_analyses: list[dict[str, Any]] = []
+        print(f"Kapa input tokens: {initial_tokens}")
+        print(f"Kapa chunk count: {len(chunk_payloads)}")
 
+        chunk_analyses: list[dict[str, Any]] = []
         for chunk in chunk_payloads:
             chunk_analysis = self.message_json(KAPA_CHUNK_SYSTEM, chunk)
             chunk_analyses.append(
