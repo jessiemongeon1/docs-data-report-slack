@@ -1,29 +1,38 @@
-name: Weekly analytics report
+name: Weekly Docs Data Report
 
 on:
-  schedule:
-    - cron: '0 14 * * 1'
   workflow_dispatch:
+  schedule:
+    - cron: "0 14 * * 1"
 
 permissions:
-  contents: read
-  pages: write
-  id-token: write
+  contents: write
+
+concurrency:
+  group: weekly-docs-data-report
+  cancel-in-progress: false
 
 jobs:
-  build-report:
+  weekly-report:
     runs-on: ubuntu-latest
+
     steps:
-      - name: Checkout
-      - uses: actions/checkout@v4
+      - name: Check out repository
+        uses: actions/checkout@v5
         with:
           persist-credentials: true
-      - uses: actions/setup-python@v5
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-        
-      - run: pip install -r requirements.txt
-      
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
       - name: Run weekly report
         run: python -m app.main
         env:
@@ -34,17 +43,33 @@ jobs:
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
           SITES_JSON: ${{ secrets.SITES_JSON }}
           CLAUDE_MAX_INPUT_TOKENS: ${{ secrets.CLAUDE_MAX_INPUT_TOKENS }}
-        
-      - name: Upload report artifact
+
+      - name: Show generated files
+        run: |
+          echo "Reports directory:"
+          ls -R reports || true
+          echo "Artifacts directory:"
+          ls -R artifacts || true
+
+      - name: Upload HTML reports artifact
         uses: actions/upload-artifact@v4
         with:
           name: weekly-html-reports
           path: reports
-        
-      - name: Commit reports
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Commit reports to repository
         run: |
-          git config user.name "github-actions"
-          git config user.email "github-actions@github.com"
-          git add reports/
-          git commit -m "Add weekly reports for ${{ github.run_id }}" || echo "No changes"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git add reports
+
+          if git diff --cached --quiet; then
+            echo "No report changes to commit"
+            exit 0
+          fi
+
+          git commit -m "Add weekly reports for ${GITHUB_RUN_ID}"
           git push
