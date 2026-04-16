@@ -384,23 +384,19 @@ class ClaudePipeline:
             print(f"Analyzing Kapa chunk {i}/{len(chunks)}")
             chunk_analyses.append(
                 self._structured_json(
-                    system_prompt=KAPA_CHUNK_SYSTEM,
-                    payload=chunk,
-                    schema_name="kapa_chunk_analysis",
-                    schema=KAPA_CHUNK_SCHEMA,
-                )
+                system_prompt=KAPA_CHUNK_SYSTEM,
+                payload=chunk,
+                schema=KAPA_CHUNK_SCHEMA,
+                max_tokens=3500,
+            )
             )
 
-        return self._structured_json(
-            system_prompt=KAPA_SYNTHESIS_SYSTEM,
-            payload={
-                "source": "kapa",
-                "project_id": kapa_raw.get("project_id"),
-                "chunk_analyses": chunk_analyses,
-            },
-            schema_name="kapa_synthesis",
-            schema=KAPA_SYNTHESIS_SCHEMA,
-        )
+    return self._structured_json(
+        system_prompt=KAPA_SYNTHESIS_SYSTEM,
+        payload=initial_payload,
+        schema=KAPA_SYNTHESIS_SCHEMA,
+        max_tokens=5000,
+    )
 
     def synthesize(
         self,
@@ -415,7 +411,6 @@ class ClaudePipeline:
                 "plausible_analysis": plausible_analysis,
                 "kapa_analysis": kapa_analysis,
             },
-            schema_name="weekly_report_analysis",
             schema=FINAL_SCHEMA,
-            max_tokens=2600,
+            max_tokens=5000,
         )
