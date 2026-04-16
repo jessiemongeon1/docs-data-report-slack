@@ -435,7 +435,7 @@ class ClaudePipeline:
                     system_prompt=KAPA_CHUNK_SYSTEM,
                     payload=chunk,
                     schema=KAPA_CHUNK_SCHEMA,
-                    max_tokens=3500,
+                    max_tokens=5500,
                 )
             )
 
@@ -447,7 +447,7 @@ class ClaudePipeline:
                 "chunk_analyses": chunk_analyses,
             },
             schema=KAPA_SYNTHESIS_SCHEMA,
-            max_tokens=5000,
+            max_tokens=8000,
         )
 
     def synthesize(
@@ -464,5 +464,5 @@ class ClaudePipeline:
                 "kapa_analysis": kapa_analysis,
             },
             schema=FINAL_SCHEMA,
-            max_tokens=5000,
+            max_tokens=8000,
         )
