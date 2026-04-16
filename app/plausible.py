@@ -133,7 +133,7 @@ class PlausibleClient:
                     "dimensions": ["visit:referrer"],
                     "metrics": ["visitors", "pageviews"],
                     "order_by": [["visitors", "desc"]],
-                    "pagination": {"limit": 50, "offset": 0},
+                    "pagination": {"limit": 1000, "offset": 0},
                 }
             ),
             "timeseries": self.query(

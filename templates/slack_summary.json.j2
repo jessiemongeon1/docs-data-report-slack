@@ -52,27 +52,47 @@
       "text": "*🧩 Kapa themes*\n{% for t in site.final_analysis.themes %}• *{{ t.name | replace('\n', ' ') }}* — `{{ t.evidence_count }} convos` `{{ t.priority }}`\n{% endfor %}"
     }
   }
+  {%- set seen_titles = [] -%}
+  {%- set top_priority_titles = [] -%}
+  {%- for item in site.final_analysis.executive_summary.top_priorities %}{% set _ = top_priority_titles.append(item | lower) %}{% endfor -%}
+  {%- set takeaway_titles = [] -%}
+  {%- for t in site.final_analysis.notable_takeaways %}{% set _ = takeaway_titles.append(t.title | lower) %}{% endfor -%}
   ,{
     "type": "section",
     "text": {
       "type": "mrkdwn",
-      "text": "*📝 Doc actions*\n{% for r in site.final_analysis.sprint_recommendations %}{% if r.category == 'documentation_action' %}• *{{ r.title | replace('\n', ' ') }}*  `{{ r.priority }}`\n  {{ r.expected_impact | replace('\n', ' ') }}\n{% endif %}{% endfor %}"
+      "text": "*📝 Doc actions*\n{% for r in site.final_analysis.sprint_recommendations %}{% if r.category == 'documentation_action' and r.title | lower not in seen_titles %}{% set _ = seen_titles.append(r.title | lower) %}• *{{ r.title | replace('\n', ' ') }}*  `{{ r.priority }}`\n  {{ r.expected_impact | replace('\n', ' ') }}\n{% endif %}{% endfor %}"
     }
   }
   ,{
     "type": "section",
     "text": {
       "type": "mrkdwn",
-      "text": "*🔧 Tooling actions*\n{% for r in site.final_analysis.sprint_recommendations %}{% if r.category == 'tooling_action' %}• *{{ r.title | replace('\n', ' ') }}*  `{{ r.priority }}`\n  {{ r.expected_impact | replace('\n', ' ') }}\n{% endif %}{% endfor %}"
+      "text": "*🔧 Tooling actions*\n{% for r in site.final_analysis.sprint_recommendations %}{% if r.category == 'tooling_action' and r.title | lower not in seen_titles %}{% set _ = seen_titles.append(r.title | lower) %}• *{{ r.title | replace('\n', ' ') }}*  `{{ r.priority }}`\n  {{ r.expected_impact | replace('\n', ' ') }}\n{% endif %}{% endfor %}"
     }
   }
   ,{
     "type": "section",
     "text": {
       "type": "mrkdwn",
-      "text": "*🧑‍💻 DX actions*\n{% for r in site.final_analysis.sprint_recommendations %}{% if r.category == 'developer_experience_action' %}• *{{ r.title | replace('\n', ' ') }}*  `{{ r.priority }}`\n  {{ r.expected_impact | replace('\n', ' ') }}\n{% endif %}{% endfor %}"
+      "text": "*🧑‍💻 DX actions*\n{% for r in site.final_analysis.sprint_recommendations %}{% if r.category == 'developer_experience_action' and r.title | lower not in seen_titles %}{% set _ = seen_titles.append(r.title | lower) %}• *{{ r.title | replace('\n', ' ') }}*  `{{ r.priority }}`\n  {{ r.expected_impact | replace('\n', ' ') }}\n{% endif %}{% endfor %}"
     }
   }
+  {% if site.top_referrers %}
+  {# Chunk referrers into groups of 20 so each Slack section stays under the 3000-char text limit #}
+  {%- set chunk_size = 20 -%}
+  {%- set total = site.top_referrers | length -%}
+  {%- set num_chunks = ((total + chunk_size - 1) // chunk_size) -%}
+  {% for chunk_index in range(num_chunks) %}
+  ,{
+    "type": "section",
+    "text": {
+      "type": "mrkdwn",
+      "text": "{% if chunk_index == 0 %}*🔗 Referrer URLs ({{ total }} total)*\n{% endif %}{% for r in site.top_referrers[chunk_index * chunk_size:(chunk_index + 1) * chunk_size] %}• <{% if r.referrer.startswith('http') %}{{ r.referrer }}{% else %}https://{{ r.referrer }}{% endif %}|{{ r.referrer | replace('\n', ' ') }}> — `{{ r.visitors }} visitors` · `{{ r.pageviews }} pageviews`\n{% endfor %}"
+    }
+  }
+  {% endfor %}
+  {% endif %}
   ,{
     "type": "actions",
     "elements": [

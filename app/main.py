@@ -4,6 +4,7 @@ import json
 import os
 from datetime import date, timedelta
 from pathlib import Path
+from typing import Any
 
 from app.claude_pipeline import ClaudePipeline
 from app.config import Settings, SiteConfig
@@ -105,6 +106,28 @@ def process_site(
     )
     report_path.write_text(html, encoding="utf-8")
 
+    # Surface every referrer URL to the Slack template (sorted by visitors desc
+    # by Plausible). Direct/no-referrer entries are filtered out.
+    top_referrers_raw = (
+        plausible_raw.get("top_referrers", {}).get("results", [])
+        if isinstance(plausible_raw, dict)
+        else []
+    )
+    top_referrers: list[dict[str, Any]] = []
+    for row in top_referrers_raw:
+        dimensions = row.get("dimensions") or []
+        metrics = row.get("metrics") or []
+        if not dimensions or not metrics:
+            continue
+        referrer = dimensions[0]
+        if not referrer or referrer == "Direct / None":
+            continue
+        top_referrers.append({
+            "referrer": referrer,
+            "visitors": metrics[0] if len(metrics) > 0 else 0,
+            "pageviews": metrics[1] if len(metrics) > 1 else 0,
+        })
+
     return {
         "site_name": site.name,
         "site_slug": site_slug,
@@ -112,6 +135,7 @@ def process_site(
         "report_url": report_url,
         "slack_webhook_urls": list(site.slack_webhook_urls),
         "final_analysis": final_analysis,
+        "top_referrers": top_referrers,
     }
 
 
