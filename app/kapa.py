@@ -113,20 +113,52 @@ class KapaClient:
         return cleaned
 
     def fetch_weekly_bundle(self, start_date: str, end_date: str) -> dict[str, Any]:
-        raw = self.get(
-            f"/query/v1/projects/{self.project_id}/question-answers/",
-            params={
-                "start_date": start_date,
-                "end_date": end_date,
-                # optional pagination hints (safe if ignored)
-                "limit": 1000,
-            },
-        )
+        path = f"/query/v1/projects/{self.project_id}/question-answers/"
+        page_size = 100
+        page = 1
+        max_pages = 100  # safety cap: 10,000 items
+        all_items: list[dict[str, Any]] = []
+        # Track the raw payload from the first page so we can keep top-level
+        # metadata (e.g. count) for downstream debugging.
+        first_payload: dict[str, Any] | None = None
 
-        qa_items = self._extract_qa_items(raw)
+        while page <= max_pages:
+            raw = self.get(
+                path,
+                params={
+                    "start_date": start_date,
+                    "end_date": end_date,
+                    "page": page,
+                    "page_size": page_size,
+                },
+            )
+            if first_payload is None:
+                first_payload = raw
+
+            page_items = self._extract_qa_items(raw)
+            if not page_items:
+                # Empty page means we've consumed all available results.
+                break
+            all_items.extend(page_items)
+
+            # Stop if the API signals there are no more pages, or if the page
+            # came back smaller than requested (last page).
+            if isinstance(raw, dict):
+                if raw.get("next") in (None, "", False):
+                    # Some Kapa endpoints expose a `next` cursor/url; if it's
+                    # explicitly null treat it as the final page. If the field
+                    # is missing entirely, fall through to the size check.
+                    if "next" in raw:
+                        break
+            if len(page_items) < page_size:
+                break
+
+            page += 1
+
+        print(f"Kapa fetched {len(all_items)} QA items across {page} page(s)")
 
         return {
             "project_id": self.project_id,
-            "question_answers": qa_items,
-            "count": len(qa_items),
+            "question_answers": all_items,
+            "count": len(all_items),
         }
