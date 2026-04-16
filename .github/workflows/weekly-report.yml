@@ -47,13 +47,10 @@ jobs:
         with:
           path: site
 
-  deploy-pages:
-    needs: build-report
-    runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-    steps:
-      - name: Deploy to GitHub Pages
-        id: deployment
-        uses: actions/deploy-pages@v4
+      - name: Commit reports
+        run: |
+          git config user.name "github-actions"
+          git config user.email "github-actions@github.com"
+          git add reports/
+          git commit -m "Add weekly reports for ${{ github.run_id }}" || echo "No changes"
+          git push
