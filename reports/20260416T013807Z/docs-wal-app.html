@@ -1,0 +1,182 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>docs.wal.app weekly analytics report</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 40px; color: #1f2937; }
+    h1, h2, h3 { color: #111827; }
+    .muted { color: #6b7280; }
+    .card { border: 1px solid #e5e7eb; border-radius: 8px; padding: 16px; margin: 16px 0; }
+    ul { line-height: 1.6; }
+    pre { white-space: pre-wrap; word-break: break-word; background: #f9fafb; padding: 12px; border-radius: 8px; }
+  </style>
+</head>
+<body>
+  <h1>docs.wal.app weekly analytics report</h1>
+  <p class="muted">2026-04-09 to 2026-04-15 · run 20260416T013807Z</p>
+
+  <div class="card">
+    <h2>Executive summary</h2>
+    <p>During Apr 9–15, docs.wal.app attracted 11,449 visitors and 18,100 pageviews, with traffic heavily concentrated on the homepage and Walrus Sites intro pages. While surface engagement metrics are shallow (82% bounce rate, 37s avg visit duration), the Walrus Sites intro page shows exceptional depth (100% scroll, 100s on-page), signaling strong intent among a targeted audience. Kapa analysis of ~100 Q&A interactions reveals systemic documentation gaps — not isolated questions — particularly around blob enumeration, privacy misconceptions, CLI setup, and the Quilt feature. The convergence of high bounce rates and recurring Kapa friction points indicates that first-time visitors are not finding clear pathways into core tasks, and that several foundational documentation gaps are generating avoidable support load across multiple languages.</p>
+    <ul>
+      
+      <li>Create a dedicated 'Querying Blob Data' guide to address the single highest-volume Kapa friction area (20 evidence points) around blob enumeration and event-based indexing.</li>
+      
+      <li>Add a prominent public-by-default callout with a Seal link at the top of blob storage docs and the getting-started guide to prevent sensitive data exposure from privacy misconceptions.</li>
+      
+      <li>Overhaul the getting-started guide to include mainnet prerequisites (real tokens, no public publisher, epoch differences) and a 'Mainnet Setup with Existing Wallet' key-import-first flow, addressing both onboarding bounce and CLI setup confusion.</li>
+      
+      <li>Overhaul Quilt documentation with a limits reference table, quick-start example, and comparison to standard blob storage to reduce the second-highest Kapa friction cluster (8 evidence points).</li>
+      
+      <li>Add a single highlighted warning box in the storage node registration section clarifying that 403 metrics push errors are expected behavior until allowlisting, to reduce operator support escalations.</li>
+      
+    </ul>
+  </div>
+
+  <div class="card">
+    <h2>Notable takeaways</h2>
+    
+      <h3>Walrus Sites intro page is the highest-quality content on the site <small>(medium)</small></h3>
+      <p><strong>Evidence:</strong> Combined ~4,100 visitors, ~5,966 pageviews, 100% scroll depth, and 100s time-on-page — far exceeding any other page including the homepage.</p>
+      <p><strong>Interpretation:</strong> Users arriving at Walrus Sites intro are highly intentional and read thoroughly. This page is a model for what effective docs look like and is likely a key driver of returning visitors (reflected in the 30d bounce rate improvement to 67%).</p>
+      <p><strong>Action:</strong> Use the Walrus Sites intro page structure and depth as a template when creating new feature guides. Ensure it links forward to the TypeScript SDK vs site-builder CLI boundary doc, which is a known Kapa friction point.</p>
+    
+      <h3>Homepage acts as a navigation hub but fails to convert first-time visitors <small>(high)</small></h3>
+      <p><strong>Evidence:</strong> Homepage has 6,456 visitors, 10s time-on-page, and 46% scroll depth; the 7d bounce rate is 82% overall.</p>
+      <p><strong>Interpretation:</strong> Most first-time visitors land on the homepage, skim briefly, and leave without going deeper. The homepage is not effectively routing users to high-value content like Walrus Sites intro or the getting-started guide.</p>
+      <p><strong>Action:</strong> Audit homepage navigation and hero content to add clearer pathways for the three primary user personas (developer, node operator, first-time onboarder). A prominent 'Start Here' section linking to getting-started, Walrus Sites intro, and the operator guide would directly address this.</p>
+    
+      <h3>A user shared their private key in Kapa chat due to unclear documentation ordering <small>(high)</small></h3>
+      <p><strong>Evidence:</strong> Kapa analysis notes one user shared their private key during a CLI setup session, attributed to unclear documentation ordering around key import steps.</p>
+      <p><strong>Interpretation:</strong> This is a serious security and trust risk. The current getting-started flow likely introduces key generation before key import, causing users with existing wallets to become confused about their wallet state.</p>
+      <p><strong>Action:</strong> Immediately restructure the CLI setup guide to lead with key import steps and insert a prominent, visually distinct warning against sharing private keys anywhere. Add a validation step to confirm the active address before any token-funded operations.</p>
+    
+      <h3>Google traffic is low-volume but highest quality; SEO is an untapped channel <small>(medium)</small></h3>
+      <p><strong>Evidence:</strong> Google sends only 201 visitors (vs. 10,851 direct) but has a 77% bounce rate and 53s avg duration — better engagement than the site average.</p>
+      <p><strong>Interpretation:</strong> Organic search visitors are meaningfully more engaged than the direct majority, yet Google represents less than 2% of traffic. This gap suggests the docs are not optimized for discoverability on high-intent search queries.</p>
+      <p><strong>Action:</strong> Identify the top 10 Kapa question themes (blob enumeration, Quilt limits, CLI setup, epoch timing) and ensure corresponding doc pages have descriptive titles, meta descriptions, and are indexed. New dedicated guides created for Kapa friction areas will also serve as SEO entry points.</p>
+    
+      <h3>Non-English users represent a meaningful but underserved segment <small>(medium)</small></h3>
+      <p><strong>Evidence:</strong> Kapa interactions include Chinese, Russian, Vietnamese, Japanese, and Hungarian users. Kapa responds in their language but docs are English-only.</p>
+      <p><strong>Interpretation:</strong> Non-English speakers are actively trying to use Walrus but face a documentation gap that Kapa can only partially bridge. This is a retention and onboarding risk for non-English developer communities.</p>
+      <p><strong>Action:</strong> Prioritize Chinese-language versions of the getting-started guide and top 5 FAQ entries (setup, token acquisition, 403 metrics error, blob privacy, mainnet vs testnet) as the highest-impact first step given likely volume.</p>
+    
+      <h3>AI-referred traffic (ChatGPT) shows disproportionately high engagement <small>(low)</small></h3>
+      <p><strong>Evidence:</strong> 10 visitors from chatgpt.com with 161s avg duration — more than 4x the site average of 37s.</p>
+      <p><strong>Interpretation:</strong> Users arriving via AI assistants are highly task-oriented and read deeply. As AI-assisted development grows, this channel could scale significantly and represents a high-value audience.</p>
+      <p><strong>Action:</strong> Monitor ChatGPT referral volume weekly. Ensure key technical pages (blob querying, CLI setup, Quilt limits) are structured with clear headings and self-contained examples that AI tools can surface accurately.</p>
+    
+  </div>
+
+  <div class="card">
+    <h2>Themes</h2>
+    
+      <h3>Blob enumeration and event-based indexing <small>(high)</small></h3>
+      <p><strong>Why it matters:</strong> The highest-volume Kapa friction area by far. Users attempting to build applications that list or index blobs hit multiple undocumented dead ends: wallet-scoped CLI limits, RPC history pruning, non-obvious module names, and the undiscovered walrus-indexer crate. Each failure point generates support load and likely causes developer drop-off.</p>
+      <p><strong>Recommended doc action:</strong> Create a dedicated 'Querying Blob Data' guide with a decision tree (owned vs. all-network blobs), a complete copy-pasteable Python/curl example with correct module name and dynamic package ID derivation, a prominent warning about public RPC pruning with archive node alternatives, and a surface-level introduction to the walrus-indexer crate and Walruscan.</p>
+      
+    
+      <h3>Quilt feature usage and limits <small>(high)</small></h3>
+      <p><strong>Why it matters:</strong> Quilt generates strong interest but lacks sufficient reference documentation, causing users to discover limits (4 GiB per blob, 666-blob max) through trial and error or support rather than docs. Clustered question threads suggest users explore Quilts as a feature block rather than finding answers independently.</p>
+      <p><strong>Recommended doc action:</strong> Overhaul Quilt documentation to lead with a limits reference table (per-blob 4 GiB, 666-blob max), add a quick-reference comparison table between Quilts and standard blob storage, and provide a quick-start example with explicit guidance on when to use Quilts.</p>
+      
+    
+      <h3>First-time CLI setup and private key import <small>(high)</small></h3>
+      <p><strong>Why it matters:</strong> Multiple users across languages struggle with the same sequence: importing existing keys in bech32/suiprivkey format, switching environments, and understanding auto-generated keypairs. The private key sharing incident elevates this from a UX issue to a security concern.</p>
+      <p><strong>Recommended doc action:</strong> Create a 'Mainnet Setup with Existing Wallet' guide that leads with key import before environment setup. Insert prominent security warnings against sharing private keys. Add a wallet address validation step before any funded operations. This should be linked from the main getting-started page.</p>
+      
+    
+      <h3>Blob access, privacy, and encryption misconceptions <small>(high)</small></h3>
+      <p><strong>Why it matters:</strong> Developers may be storing sensitive data unencrypted because the public-by-default nature of blobs and the Seal access control solution are not surfaced before storage examples. This is both a security risk for users and a reputational risk for the platform.</p>
+      <p><strong>Recommended doc action:</strong> Add a visually prominent callout box at the top of the blob storage docs and getting-started guide stating all data is public by default, with a direct link to Seal documentation. This must appear before any code examples that write data.</p>
+      
+    
+      <h3>Mainnet vs testnet differences and publisher requirements <small>(high)</small></h3>
+      <p><strong>Why it matters:</strong> Appears in both English and Japanese threads, confirming it is a universal onboarding gap. Users hit real token requirements, missing public publishers, and different epoch durations without warning, causing failed first attempts and support escalation.</p>
+      <p><strong>Recommended doc action:</strong> Add a mainnet prerequisites section at the top of the getting-started guide listing: real SUI+WAL token requirement, no public publisher on mainnet, self-hosted publisher necessity, epoch duration differences, and a cost calculator link.</p>
+      
+    
+      <h3>Blob lifecycle, expiry, and deletable vs permanent distinction <small>(medium)</small></h3>
+      <p><strong>Why it matters:</strong> Sequential questions about expiry, extension, and the burn-blobs cost reclaim flow indicate users are building storage-dependent applications without a clear mental model of blob lifecycle. Misunderstanding this leads to data loss or unexpected costs.</p>
+      <p><strong>Recommended doc action:</strong> Create a visual blob lifecycle diagram or dedicated FAQ covering: expiry behavior, extend-before-expiry rule, burn-blobs for cost reclaim, and the deletable vs permanent distinction. Link it prominently from the storing blobs documentation.</p>
+      
+    
+      <h3>Epoch timing and programmatic monitoring <small>(medium)</small></h3>
+      <p><strong>Why it matters:</strong> Developers building epoch-aware applications (automated renewal, expiry monitoring) cannot find the epoch end-time formula or event subscription patterns in docs, leading to repeated Kapa questions that should be self-serve.</p>
+      <p><strong>Recommended doc action:</strong> Add an 'Epoch Timing' section in the system overview with the formula for computing future epoch end times, a pointer to walrus info for live data, and code examples for Sui event subscription to detect epoch transitions.</p>
+      
+    
+      <h3>Blob write methods comparison (CLI, HTTP API, SDK, Quilt) <small>(medium)</small></h3>
+      <p><strong>Why it matters:</strong> Users evaluating write options for backend and production contexts cannot easily compare methods or find the authenticated publisher pattern for mainnet. This slows integration work and generates redundant questions.</p>
+      <p><strong>Recommended doc action:</strong> Create a comparison table of write methods (CLI, HTTP API, TypeScript SDK, Quilt) with mainnet vs testnet applicability. Add a backend integration guide showing the authenticated publisher pattern end-to-end.</p>
+      
+    
+      <h3>WAL/SUI token management and coin merging <small>(medium)</small></h3>
+      <p><strong>Why it matters:</strong> Node operators repeatedly struggle with Sui coin object mechanics — identifying WAL coin object IDs, merging fragmented coins, and avoiding shared ownership errors. These are blocking issues during node registration.</p>
+      <p><strong>Recommended doc action:</strong> Add a dedicated operator troubleshooting section covering: identifying WAL coin object IDs, merging fragmented coins with CLI commands, and common errors such as passing package addresses instead of coin object IDs.</p>
+      
+    
+      <h3>Walrus Sites deployment vs TypeScript SDK boundary <small>(medium)</small></h3>
+      <p><strong>Why it matters:</strong> Developers building on the TypeScript SDK attempt to deploy Walrus Sites through it and hit unexpected walls. Correct mainnet and testnet site package IDs are scattered, slowing integration.</p>
+      <p><strong>Recommended doc action:</strong> Add a dedicated section clarifying that the TypeScript SDK handles blob storage only while Walrus Sites deployment requires the site-builder CLI or Move contract interaction. List mainnet and testnet site package IDs prominently in a single reference location.</p>
+      
+    
+      <h3>NFT object ID vs Walrus Blob object ID confusion <small>(medium)</small></h3>
+      <p><strong>Why it matters:</strong> Developers building NFT integrations hit 'missing bcs data on object' errors by querying the wrong ID type. Without a clear distinction in docs, this is a recurring friction point for an important developer use case.</p>
+      <p><strong>Recommended doc action:</strong> Add a troubleshooting entry or dedicated doc section distinguishing Sui NFT object IDs from Walrus Blob object IDs, with a code example showing how to retrieve the blob ID from an NFT's on-chain fields.</p>
+      
+    
+      <h3>Storage node metrics 403 error (expected behavior) <small>(medium)</small></h3>
+      <p><strong>Why it matters:</strong> Operators across multiple languages (Vietnamese, English) interpret an expected 403 metrics push error as a misconfiguration and escalate to support. A single doc change can eliminate this recurring support ticket category.</p>
+      <p><strong>Recommended doc action:</strong> Add a highlighted warning box early in the storage node registration section explicitly stating that 403 metrics push errors are normal and expected until the node is allowlisted by the Walrus Foundation, with an estimated timeline if available.</p>
+      
+    
+  </div>
+
+  <div class="card">
+    <h2>Sprint recommendations</h2>
+    
+      <h3>Add public-by-default callout with Seal link to blob storage docs and getting-started guide <small>(high)</small></h3>
+      <p><strong>Scope:</strong> Single callout box insertion at the top of two existing pages (blob storage docs and getting-started guide). No new page required.</p>
+      <p><strong>Why now:</strong> A user has already shared a private key in Kapa chat. Every day this warning is absent is a security risk for users storing sensitive data. This is the lowest-effort, highest-safety-impact change available.</p>
+      <p><strong>Expected impact:</strong> Reduces risk of sensitive data exposure. Drives qualified traffic to Seal documentation. Addresses 5 Kapa evidence points and mitigates reputational risk.</p>
+    
+      <h3>Add mainnet prerequisites section to the getting-started guide with key-import-first CLI flow <small>(high)</small></h3>
+      <p><strong>Scope:</strong> Restructure the top of the existing getting-started page and add a 'Mainnet Setup with Existing Wallet' subsection. Includes security warning insertion and wallet validation step.</p>
+      <p><strong>Why now:</strong> Mainnet vs testnet confusion and CLI key import friction appear across English and Japanese Kapa threads, confirming universal impact. The private key sharing incident adds urgency to fixing the setup flow ordering.</p>
+      <p><strong>Expected impact:</strong> Reduces first-session failures and support escalations for onboarding. Directly addresses 7 CLI setup and 4 mainnet/testnet evidence points. Likely improves bounce rate on the getting-started page.</p>
+    
+      <h3>Create dedicated 'Querying Blob Data' guide with decision tree and working code examples <small>(high)</small></h3>
+      <p><strong>Scope:</strong> New standalone guide page covering: owned blobs (list-blobs CLI) vs all-network blobs (event tracking), complete Python/curl example, RPC pruning warning with archive alternatives, walrus-indexer crate introduction, and Walruscan link.</p>
+      <p><strong>Why now:</strong> Blob enumeration is the single highest-volume Kapa friction area (20 evidence points). No current doc page addresses this adequately. The complexity and volume of questions confirm this is a systemic gap, not edge-case usage.</p>
+      <p><strong>Expected impact:</strong> Directly resolves the top Kapa friction cluster. Creates a new SEO-indexable page for high-intent developer queries. Reduces recurring support load on blob indexing questions.</p>
+    
+      <h3>Overhaul Quilt documentation with limits table, comparison to standard blobs, and quick-start example <small>(high)</small></h3>
+      <p><strong>Scope:</strong> Rewrite of existing Quilt documentation section to lead with a limits reference table (4 GiB per blob, 666-blob max), add a comparison table vs standard blob storage, and include a quick-start code example.</p>
+      <p><strong>Why now:</strong> 8 Kapa evidence points cluster around Quilt limits and usage patterns, indicating users are actively trying to use the feature but hitting undocumented walls. Quilt appears to be a growth feature that docs are not yet supporting adequately.</p>
+      <p><strong>Expected impact:</strong> Reduces Kapa Quilt questions significantly. Improves developer confidence in adopting Quilt for production use cases. Supports conversion of high-intent Walrus Sites visitors into Quilt adopters.</p>
+    
+      <h3>Add 403 metrics push error warning box to storage node registration section <small>(medium)</small></h3>
+      <p><strong>Scope:</strong> Single highlighted warning box insertion in the existing storage node registration documentation. Minimal writing effort.</p>
+      <p><strong>Why now:</strong> This is the highest-ratio effort-to-support-reduction change available for node operators. The same question has appeared across Vietnamese and English threads, confirming it is not language- or region-specific.</p>
+      <p><strong>Expected impact:</strong> Meaningful reduction in node operator support escalations. Improves operator setup success rate. Takes under 30 minutes to implement.</p>
+    
+      <h3>Create blob lifecycle diagram or FAQ covering expiry, extension, burn-blobs, and deletable vs permanent blobs <small>(medium)</small></h3>
+      <p><strong>Scope:</strong> New visual diagram or structured FAQ section within the existing storing blobs documentation. Covers four lifecycle concepts in one place.</p>
+      <p><strong>Why now:</strong> Sequential Kapa questions (expiry → extend → burn → deletable vs permanent) indicate users are building lifecycle-dependent applications without a clear mental model. Addressing this as a unit is more effective than patching each concept individually.</p>
+      <p><strong>Expected impact:</strong> Reduces sequential lifecycle questions in Kapa. Supports developers building storage-renewal and cost-management workflows. Improves mid-funnel engagement for the storing blobs section.</p>
+    
+      <h3>Add homepage navigation pathways for developer, operator, and onboarder personas <small>(medium)</small></h3>
+      <p><strong>Scope:</strong> Homepage content update to add a 'Start Here' section with three clear persona-based entry points linking to getting-started, Walrus Sites intro, and the operator guide.</p>
+      <p><strong>Why now:</strong> The homepage has 6,456 weekly visitors but only 10s time-on-page and 46% scroll depth, with an 82% bounce rate. It is the site's largest traffic opportunity and currently its weakest conversion point.</p>
+      <p><strong>Expected impact:</strong> Improves first-visit navigation depth and reduces homepage bounce rate. Routes more visitors to high-performing content like Walrus Sites intro. Measurable via pageview depth and bounce rate in Plausible within 2 weeks.</p>
+    
+  </div>
+
+  <div class="card">
+    <h2>Raw artifacts generated</h2>
+    <p>Plausible and Kapa raw JSON were fetched and analyzed automatically before this report was rendered.</p>
+  </div>
+</body>
+</html>

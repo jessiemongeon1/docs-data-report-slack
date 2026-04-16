@@ -1,0 +1,157 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>docs.sui.io weekly analytics report</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 40px; color: #1f2937; }
+    h1, h2, h3 { color: #111827; }
+    .muted { color: #6b7280; }
+    .card { border: 1px solid #e5e7eb; border-radius: 8px; padding: 16px; margin: 16px 0; }
+    ul { line-height: 1.6; }
+    pre { white-space: pre-wrap; word-break: break-word; background: #f9fafb; padding: 12px; border-radius: 8px; }
+  </style>
+</head>
+<body>
+  <h1>docs.sui.io weekly analytics report</h1>
+  <p class="muted">2026-04-09 to 2026-04-15 · run 20260416T013807Z</p>
+
+  <div class="card">
+    <h2>Executive summary</h2>
+    <p>Sui docs had a healthy week with 4,903 unique visitors and 14,833 pageviews (Apr 9–15, 2026), showing stable traffic with slightly deeper engagement than prior periods (183s avg session, 2.67 views/visit). The getting-started funnel dominates traffic but shows signs of drop-off before deeper content. Kapa AI analysis of 84 Q&A interactions reveals three critical documentation gaps: GraphQL/gRPC migration guidance, Move and SDK onboarding friction, and missing coverage for newer protocol features (address balances, PAS, Walrus). With the JSON-RPC deprecation deadline of July 31, 2026 approaching, migration documentation is an urgent priority.</p>
+    <ul>
+      
+      <li>Publish a JSON-RPC → gRPC/GraphQL migration hub with method mapping table and language-specific examples before the July 31 deadline</li>
+      
+      <li>Fix GraphQL dynamic field querying documentation with literal syntax guide and union type handling</li>
+      
+      <li>Address Move and SDK onboarding friction with a consolidated 'Start Here' path, common mistakes callouts, and SDK 2.0 breaking changes summary</li>
+      
+      <li>Investigate and improve the PTB page (/guides/developer/transactions/ptbs/prog-txn-blocks) which shows high bounce (66%) and low scroll depth (29s)</li>
+      
+      <li>Create structured onboarding guides for PAS and address balances, including network activation status and fallback patterns</li>
+      
+    </ul>
+  </div>
+
+  <div class="card">
+    <h2>Notable takeaways</h2>
+    
+      <h3>PTB Page Has High Bounce and Low Scroll Depth <small>(high)</small></h3>
+      <p><strong>Evidence:</strong> 181 visitors, 66% bounce rate, only 29s average scroll depth — the lowest scroll depth of any top page this week.</p>
+      <p><strong>Interpretation:</strong> Users landing on the Programmable Transaction Blocks page are not finding what they need or are arriving via deep links expecting more foundational context. This may also correlate with Kapa questions about transaction signing errors and SDK usage.</p>
+      <p><strong>Action:</strong> Audit the PTB page for missing entry-level context, broken anchor links, and alignment with search intent. Add a prerequisite callout and links to related signing/SDK pages.</p>
+    
+      <h3>JSON-RPC Deprecation Migration Is Causing Active Developer Pain <small>(high)</small></h3>
+      <p><strong>Evidence:</strong> 8 Kapa interactions this week on gRPC/GraphQL migration; developers asking for equivalents of specific JSON-RPC methods, language-specific gRPC usage, and third-party SDK breakage (pysui).</p>
+      <p><strong>Interpretation:</strong> With the July 31, 2026 deadline fewer than 4 months away, migration confusion is escalating. The absence of a consolidated migration hub is forcing developers to piece together guidance from scattered docs and community channels.</p>
+      <p><strong>Action:</strong> Prioritize a dedicated migration hub page this sprint: JSON-RPC → gRPC/GraphQL method mapping table, Go/TypeScript/Python code examples, and prominent deadline callouts in SDK and API reference pages.</p>
+    
+      <h3>GraphQL Dynamic Field Queries Are the Top Recurring Technical Pain Point <small>(high)</small></h3>
+      <p><strong>Evidence:</strong> 8 Kapa interactions specifically about dynamic field querying — wrong literal syntax, null results from wrapped objects, MoveValue vs MoveObject union type handling.</p>
+      <p><strong>Interpretation:</strong> These are not isolated questions but a cluster of related documentation gaps around a single feature area. Developers are spending significant time debugging issues that should be addressed by clearer documentation.</p>
+      <p><strong>Action:</strong> Add a dedicated dynamic fields troubleshooting section covering literal suffixes by type, address() vs object() for wrapped objects, DynamicFieldValue union handling, and a BCS encoding fallback with a type comparison table.</p>
+    
+      <h3>AI Referral Traffic Is Emerging as a Meaningful Channel <small>(medium)</small></h3>
+      <p><strong>Evidence:</strong> chatgpt.com (44 visitors, 70% bounce, 121s) and claude.ai (8 visitors) appear as referral sources this week.</p>
+      <p><strong>Interpretation:</strong> AI assistants are beginning to route developers to Sui docs. The relatively high bounce rate suggests users may not be landing on the most relevant page for their query context.</p>
+      <p><strong>Action:</strong> Monitor AI referral traffic weekly. Audit the most AI-referred pages for clarity and self-containment. Consider structured content (FAQs, clear headings) that improves AI-cited snippet quality.</p>
+    
+      <h3>Chinese-Speaking Developers Disproportionately Affected by Multiple Pain Points <small>(medium)</small></h3>
+      <p><strong>Evidence:</strong> Kapa analysis notes Chinese-language developers are particularly impacted by Move onboarding friction, coinWithBalance errors, and address balance awareness gaps across multiple themes.</p>
+      <p><strong>Interpretation:</strong> Non-English developers are hitting documentation gaps that English-speaking developers may resolve via community channels or secondary resources not available in Chinese.</p>
+      <p><strong>Action:</strong> Prioritize Chinese-language summaries or translations for the top 3 pain points: SDK 2.0 breaking changes, address balance activation, and coinWithBalance fallback patterns.</p>
+    
+      <h3>GitHub and Self-Referral Traffic Represents Highest-Value Engaged Users <small>(low)</small></h3>
+      <p><strong>Evidence:</strong> GitHub referrals average 392s session duration; docs.sui.io self-referrals average 518s — the longest of any source.</p>
+      <p><strong>Interpretation:</strong> Developers arriving from GitHub or navigating across multiple doc pages are deeply engaged and likely building actively. These users benefit most from cross-linking and progressive depth content.</p>
+      <p><strong>Action:</strong> Improve cross-linking between related deep-dive pages (e.g., PTBs, Move concepts, SDK reference) to extend multi-page journeys for high-intent users.</p>
+    
+      <h3>coinWithBalance and Address Balance Errors Lack Adequate Documentation <small>(medium)</small></h3>
+      <p><strong>Evidence:</strong> 4 Kapa interactions around 'Invalid withdraw reservation' errors, unclear network activation status, and confusion between address balances and the UTXO coin model.</p>
+      <p><strong>Interpretation:</strong> SIP-58 address balances are a newer protocol feature without sufficient documentation on activation status, detection, and fallback patterns, leading to developer confusion.</p>
+      <p><strong>Action:</strong> Add a dedicated address balance documentation page covering: network activation status, protocol config flag detection, coinWithBalance fallback when balance is zero, and a plain-language comparison with the old coin model.</p>
+    
+  </div>
+
+  <div class="card">
+    <h2>Themes</h2>
+    
+      <h3>Getting-Started Funnel Dominance with Depth Drop-Off <small>(high)</small></h3>
+      <p><strong>Why it matters:</strong> Six of the top 10 pages are within /guides/developer/getting-started/, indicating the docs are effective at attracting new developers but may not be guiding them toward intermediate or advanced content. The hello-world page shows lower scroll depth (47s) than earlier funnel pages, suggesting engagement drops before completion.</p>
+      <p><strong>Recommended doc action:</strong> Add a visible 'Next Steps' progression panel at the bottom of each getting-started page guiding users to Move concepts, SDK setup, and first transaction guides. Consider adding estimated read times to set expectations.</p>
+      
+    
+      <h3>GraphQL and gRPC API Adoption Friction <small>(high)</small></h3>
+      <p><strong>Why it matters:</strong> With JSON-RPC sunset on July 31, 2026, developers must migrate but are finding documentation insufficient for practical implementation. gRPC also draws significant organic traffic (/concepts/data-access/grpc with 24% bounce rate), signaling high intent but potentially unmet information needs.</p>
+      <p><strong>Recommended doc action:</strong> Create a migration hub and expand gRPC documentation with language-specific quickstarts (Go, TypeScript, Python), error code references, and a method equivalency table. Add deprecation banners to all JSON-RPC reference pages.</p>
+      
+    
+      <h3>Move and SDK Onboarding Friction <small>(high)</small></h3>
+      <p><strong>Why it matters:</strong> The highest-volume Kapa theme this week. Beginners struggle with Move primitives and ownership; intermediate developers hit SDK 2.0 breaking changes (ESM-only, client restructure) and transaction signing errors. This friction directly impacts developer activation.</p>
+      <p><strong>Recommended doc action:</strong> Create a 'Move Start Here' learning path, add a 'Common Mistakes' callout box to the signAndExecuteTransaction reference, and publish an SDK 2.0 migration summary highlighting the top 5 breaking changes with before/after code examples.</p>
+      
+    
+      <h3>Newer Protocol Features Lacking Structured Documentation <small>(medium)</small></h3>
+      <p><strong>Why it matters:</strong> PAS (4 interactions), address balances/coinWithBalance (4 interactions), and Walrus SDK (2 interactions) all show multi-turn exploratory questioning patterns, indicating developers are learning these features without structured guides. PAS and address balances are partially testnet-only, adding confusion.</p>
+      <p><strong>Recommended doc action:</strong> Publish structured onboarding guides for PAS (motivation → architecture → integration) and address balances (activation, detection, fallback). Expand Walrus SDK docs for blob epoch extension and wal_exchange API parameters.</p>
+      
+    
+      <h3>Coin Metadata and Non-Standard Coin Query Gaps <small>(medium)</small></h3>
+      <p><strong>Why it matters:</strong> Multiple developers — particularly Chinese-speaking users — are getting null returns from getCoinMetadata and applying normalizeSuiAddress incorrectly to full type strings, breaking USDC and other token struct references. This blocks DeFi integrations.</p>
+      <p><strong>Recommended doc action:</strong> Update getCoinMetadata docs to explain null return conditions and provide a fallback strategy. Add an explicit warning against using normalizeSuiAddress on full type strings and recommend normalizeStructTag instead. Include examples for both JSON-RPC and GraphQL paths.</p>
+      
+    
+      <h3>Frontend and Full-Stack dApp Onboarding <small>(medium)</small></h3>
+      <p><strong>Why it matters:</strong> Web2 developers entering Sui lack mental model bridges for core primitives. Questions about wallet connection, zkLogin vs standard wallets, and deployment flow are recurring, and no dedicated Web2 onramp guide currently exists in the top-trafficked pages.</p>
+      <p><strong>Recommended doc action:</strong> Create a 'Web2 to Sui' quickstart mapping Web2 concepts (backend, DB, auth) to Sui primitives (Move, objects, zkLogin). Include a scaffold template, testnet deployment walkthrough, and a zkLogin vs wallet connection decision guide.</p>
+      
+    
+      <h3>TypeScript SDK Environment Setup Errors <small>(medium)</small></h3>
+      <p><strong>Why it matters:</strong> Cascading setup errors (wrong gRPC ports, ESM/CJS misconfiguration, incorrect tsx run commands) are blocking TypeScript developers before they can write a single transaction. Third-party SDK complexity compounds the problem.</p>
+      <p><strong>Recommended doc action:</strong> Publish a TypeScript environment quickstart explicitly covering ESM configuration (package.json type:module), correct gRPC ports per network, running files with tsx, and a scope note that third-party SDKs are outside official support.</p>
+      
+    
+  </div>
+
+  <div class="card">
+    <h2>Sprint recommendations</h2>
+    
+      <h3>Build and Publish JSON-RPC to gRPC/GraphQL Migration Hub <small>(high)</small></h3>
+      <p><strong>Scope:</strong> New dedicated migration page with method mapping table (suix_getStakesByIds and other common methods), Go/TypeScript/Python code examples, deprecation deadline callout, and community SDK (pysui) warning. Add deprecation banners to all JSON-RPC reference pages.</p>
+      <p><strong>Why now:</strong> July 31, 2026 deadline is under 4 months away. 8 Kapa interactions this week confirm active developer confusion. Early publication reduces support load and community friction as the deadline approaches.</p>
+      <p><strong>Expected impact:</strong> Reduces repeat migration-related questions in Kapa, lowers bounce rate on gRPC/GraphQL API pages, and provides a shareable resource for community SDK maintainers.</p>
+    
+      <h3>Add GraphQL Dynamic Fields Troubleshooting Section <small>(high)</small></h3>
+      <p><strong>Scope:</strong> New troubleshooting subsection in the dynamic fields documentation covering: literal suffixes by type (u64, address, string), address() vs object() for wrapped objects, DynamicFieldValue union type handling, BCS encoding fallback, and a comparison table.</p>
+      <p><strong>Why now:</strong> 8 Kapa interactions this week make this the single most repeated technical pain point. Developers are failing at multiple stages of the same feature, indicating a structural documentation gap rather than isolated questions.</p>
+      <p><strong>Expected impact:</strong> Directly resolves the top Kapa pain point cluster, reducing repeat queries and unblocking developers on a core Move data pattern.</p>
+    
+      <h3>Audit and Improve the PTB Documentation Page <small>(high)</small></h3>
+      <p><strong>Scope:</strong> Review /guides/developer/transactions/ptbs/prog-txn-blocks for search intent alignment, missing entry-level context, and broken or missing cross-links to signing and SDK pages. Add prerequisite callouts and a 'common mistakes' section for transaction construction.</p>
+      <p><strong>Why now:</strong> 66% bounce rate and 29s scroll depth are the worst engagement metrics of any top page this week, indicating users are not finding value. Kapa data on signing errors and SDK confusion reinforces that the page may be missing critical practical context.</p>
+      <p><strong>Expected impact:</strong> Improved scroll depth and lower bounce rate on a high-traffic page; fewer Kapa questions about transaction signing and PTB construction patterns.</p>
+    
+      <h3>Publish SDK 2.0 Migration Summary and Move 'Start Here' Learning Path <small>(high)</small></h3>
+      <p><strong>Scope:</strong> SDK 2.0: top 5 breaking changes with before/after code examples, ESM-only callout, client restructure summary. Move learning path: ordered entry point linking primitives, types, ownership, abilities, and test utilities. Add 'Common Mistakes' callout to signAndExecuteTransaction reference.</p>
+      <p><strong>Why now:</strong> 10 Kapa interactions (highest theme volume) confirm onboarding friction across beginner and intermediate developers. The getting-started funnel drives the most traffic but lacks progression paths into core Move concepts.</p>
+      <p><strong>Expected impact:</strong> Reduces onboarding-related Kapa questions, improves funnel progression from getting-started pages to Move concepts (currently 195 visitors vs 1,100+ on install page), and supports Chinese-speaking developers with clearer structured paths.</p>
+    
+      <h3>Document Address Balances and coinWithBalance Fallback Patterns <small>(medium)</small></h3>
+      <p><strong>Scope:</strong> New or expanded page covering: SIP-58 address balance activation status per network, protocol config flag detection, coinWithBalance fallback when fundsInAddressBalance is zero, and a plain-language comparison with the old UTXO coin model. Include Chinese-accessible summary.</p>
+      <p><strong>Why now:</strong> 4 Kapa interactions show active developer errors (Invalid withdraw reservation) and awareness gaps. Feature is live but documentation is insufficient for production use.</p>
+      <p><strong>Expected impact:</strong> Unblocks developers hitting coinWithBalance errors, reduces support escalations for a newer protocol feature, and improves accessibility for non-English developers.</p>
+    
+      <h3>Create PAS Structured Onboarding Guide <small>(medium)</small></h3>
+      <p><strong>Scope:</strong> Progressive guide: motivation → ELI5 explainer → architecture → integration walkthrough. Prominently highlight testnet-only status throughout. Cover RWA balance tracking details.</p>
+      <p><strong>Why now:</strong> 4 Kapa interactions show multi-turn exploratory questioning, indicating developers are self-navigating a complex feature without a structured path. Testnet status creates additional confusion that a clear callout would resolve.</p>
+      <p><strong>Expected impact:</strong> Reduces exploratory Kapa Q&A on PAS, provides a shareable resource for developers evaluating PAS for RWA use cases, and clarifies testnet vs mainnet availability.</p>
+    
+  </div>
+
+  <div class="card">
+    <h2>Raw artifacts generated</h2>
+    <p>Plausible and Kapa raw JSON were fetched and analyzed automatically before this report was rendered.</p>
+  </div>
+</body>
+</html>
