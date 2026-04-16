@@ -116,13 +116,14 @@ PLAUSIBLE_SCHEMA = {
     "required": ["summary", "key_metrics", "top_pages", "referrals", "trends"],
     "additionalProperties": False,
 }
-
+ 
 KAPA_CHUNK_SCHEMA = {
     "type": "object",
     "properties": {
         "chunk_summary": {"type": "string"},
         "themes": {
             "type": "array",
+            "maxItems": 5,
             "items": {
                 "type": "object",
                 "properties": {
@@ -139,7 +140,7 @@ KAPA_CHUNK_SCHEMA = {
     "required": ["chunk_summary", "themes"],
     "additionalProperties": False,
 }
-
+ 
 KAPA_SYNTHESIS_SCHEMA = {
     "type": "object",
     "properties": {
@@ -148,6 +149,7 @@ KAPA_SYNTHESIS_SCHEMA = {
         "total_themes": {"type": "integer"},
         "themes": {
             "type": "array",
+            "maxItems": 7,
             "items": {
                 "type": "object",
                 "properties": {
@@ -164,7 +166,7 @@ KAPA_SYNTHESIS_SCHEMA = {
     "required": ["summary", "total_conversations", "total_themes", "themes"],
     "additionalProperties": False,
 }
-
+ 
 FINAL_SCHEMA = {
     "type": "object",
     "properties": {
@@ -176,6 +178,7 @@ FINAL_SCHEMA = {
                 "total_themes_identified": {"type": "integer"},
                 "top_priorities": {
                     "type": "array",
+                    "maxItems": 4,
                     "items": {"type": "string"},
                 },
             },
@@ -189,6 +192,7 @@ FINAL_SCHEMA = {
         },
         "notable_takeaways": {
             "type": "array",
+            "maxItems": 5,
             "items": {
                 "type": "object",
                 "properties": {
@@ -213,6 +217,7 @@ FINAL_SCHEMA = {
         },
         "themes": {
             "type": "array",
+            "maxItems": 7,
             "items": {
                 "type": "object",
                 "properties": {
@@ -237,6 +242,7 @@ FINAL_SCHEMA = {
         },
         "sprint_recommendations": {
             "type": "array",
+            "maxItems": 8,
             "items": {
                 "type": "object",
                 "properties": {
@@ -277,30 +283,30 @@ FINAL_SCHEMA = {
     ],
     "additionalProperties": False,
 }
-
-
+ 
+ 
 class ClaudePipeline:
     def __init__(self, api_key: str, model: str, max_input_tokens: int = 8000) -> None:
         self.client = Anthropic(api_key=api_key)
         self.model = model
         self.max_input_tokens = max_input_tokens
-
+ 
     def _sleep_from_rate_limit(self, exc: RateLimitError) -> None:
         retry_after = None
         response = getattr(exc, "response", None)
         headers = getattr(response, "headers", None)
         if headers:
             retry_after = headers.get("retry-after")
-
+ 
         if retry_after:
             try:
                 time.sleep(float(retry_after) + 1.0)
                 return
             except ValueError:
                 pass
-
+ 
         time.sleep(20)
-
+ 
     def _messages_create_with_retry(self, **kwargs: Any) -> Any:
         attempts = 0
         while True:
@@ -311,7 +317,7 @@ class ClaudePipeline:
                 if attempts >= 6:
                     raise
                 self._sleep_from_rate_limit(exc)
-
+ 
     def _structured_json(
         self,
         *,
@@ -332,28 +338,28 @@ class ClaudePipeline:
                 }
             },
         )
-
+ 
         stop_reason = getattr(response, "stop_reason", None)
         if stop_reason == "max_tokens":
             raise ValueError(
                 f"Claude output was truncated at max_tokens={max_tokens}. Increase max_tokens or shrink the schema/output."
             )
-
+ 
         text_parts: list[str] = []
         for block in response.content:
             if getattr(block, "type", None) == "text":
                 text_parts.append(block.text)
-
+ 
         text = "".join(text_parts).strip()
         if not text:
             raise ValueError("Claude returned no structured output text")
-
+ 
         return json.loads(text)
-
+ 
     def _estimate_tokens(self, obj: Any) -> int:
         text = json.dumps(obj, ensure_ascii=False)
         return max(1, math.ceil(len(text) / 4))
-
+ 
     def _normalize_qa_items(self, question_answers: Any) -> list[Any]:
         if isinstance(question_answers, list):
             return question_answers
@@ -364,7 +370,7 @@ class ClaudePipeline:
                 return question_answers["data"]
             return [question_answers]
         return [question_answers]
-
+ 
     def _chunk_by_local_size(
         self,
         items: list[Any],
@@ -375,7 +381,7 @@ class ClaudePipeline:
         chunks: list[dict[str, Any]] = []
         current_items: list[Any] = []
         current_tokens = self._estimate_tokens(base_payload)
-
+ 
         for item in items:
             item_tokens = self._estimate_tokens(item)
             if current_items and current_tokens + item_tokens > target_tokens:
@@ -385,12 +391,12 @@ class ClaudePipeline:
             else:
                 current_items.append(item)
                 current_tokens += item_tokens
-
+ 
         if current_items:
             chunks.append({**base_payload, "raw": {field_name: current_items}})
-
+ 
         return chunks
-
+ 
     def analyze_plausible_raw(self, plausible_raw: dict[str, Any]) -> dict[str, Any]:
         return self._structured_json(
             system_prompt=PLAUSIBLE_SYSTEM,
@@ -398,11 +404,11 @@ class ClaudePipeline:
             schema=PLAUSIBLE_SCHEMA,
             max_tokens=2500,
         )
-
+ 
     def analyze_kapa_raw(self, kapa_raw: dict[str, Any]) -> dict[str, Any]:
         initial_payload = {"source": "kapa", "raw": kapa_raw}
         initial_tokens = self._estimate_tokens(initial_payload)
-
+ 
         if initial_tokens <= self.max_input_tokens:
             return self._structured_json(
                 system_prompt=KAPA_SYNTHESIS_SYSTEM,
@@ -410,9 +416,9 @@ class ClaudePipeline:
                 schema=KAPA_SYNTHESIS_SCHEMA,
                 max_tokens=8000,
             )
-
+ 
         qa_items = self._normalize_qa_items(kapa_raw.get("question_answers", []))
-
+ 
         target_tokens = min(self.max_input_tokens, 8000)
         chunks = self._chunk_by_local_size(
             qa_items,
@@ -424,10 +430,10 @@ class ClaudePipeline:
             },
             target_tokens,
         )
-
+ 
         print(f"Kapa estimated tokens: {initial_tokens}")
         print(f"Kapa chunk count: {len(chunks)}")
-
+ 
         chunk_analyses: list[dict[str, Any]] = []
         for i, chunk in enumerate(chunks, start=1):
             print(f"Analyzing Kapa chunk {i}/{len(chunks)}")
@@ -439,7 +445,7 @@ class ClaudePipeline:
                     max_tokens=3500,
                 )
             )
-
+ 
         return self._structured_json(
             system_prompt=KAPA_SYNTHESIS_SYSTEM,
             payload={
@@ -450,7 +456,7 @@ class ClaudePipeline:
             schema=KAPA_SYNTHESIS_SCHEMA,
             max_tokens=8000,
         )
-
+ 
     def synthesize(
         self,
         metadata: dict[str, Any],
@@ -464,6 +470,10 @@ class ClaudePipeline:
                 "plausible_analysis": plausible_analysis,
                 "kapa_analysis": kapa_analysis,
             },
+            schema=FINAL_SCHEMA,
+            max_tokens=8000,
+        )
+ 
             schema=FINAL_SCHEMA,
             max_tokens=8000,
         )
