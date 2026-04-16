@@ -57,7 +57,7 @@ class Settings:
             report_base_url=report_base_url,
             raw_output_dir=Path(os.getenv("RAW_OUTPUT_DIR", "./artifacts/raw")),
             report_output_dir=Path(os.getenv("REPORT_OUTPUT_DIR", "./artifacts/reports")),
-            site_output_dir=Path(os.getenv("SITE_OUTPUT_DIR", "./site")),
+            site_output_dir=Path(os.getenv("SITE_OUTPUT_DIR", "./reports"))
             claude_model=os.getenv("CLAUDE_MODEL", "claude-sonnet-4-6"),
             claude_max_input_tokens=int(os.getenv("CLAUDE_MAX_INPUT_TOKENS", "120000")),
             report_days=int(os.getenv("REPORT_DAYS", "7")),
