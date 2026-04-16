@@ -87,7 +87,6 @@ PLAUSIBLE_SCHEMA = {
         },
         "top_pages": {
             "type": "array",
-            "maxItems": 20,
             "items": {
                 "type": "object",
                 "properties": {
@@ -134,7 +133,6 @@ KAPA_CHUNK_SCHEMA = {
         "chunk_summary": {"type": "string"},
         "themes": {
             "type": "array",
-            "maxItems": 5,
             "items": {
                 "type": "object",
                 "properties": {
@@ -160,7 +158,6 @@ KAPA_SYNTHESIS_SCHEMA = {
         "total_themes": {"type": "integer"},
         "themes": {
             "type": "array",
-            "maxItems": 7,
             "items": {
                 "type": "object",
                 "properties": {
@@ -189,7 +186,6 @@ FINAL_SCHEMA = {
                 "total_themes_identified": {"type": "integer"},
                 "top_priorities": {
                     "type": "array",
-                    "maxItems": 4,
                     "items": {"type": "string"},
                 },
             },
@@ -203,7 +199,6 @@ FINAL_SCHEMA = {
         },
         "page_theme_correlations": {
             "type": "array",
-            "maxItems": 10,
             "items": {
                 "type": "object",
                 "properties": {
@@ -229,7 +224,6 @@ FINAL_SCHEMA = {
         },
         "notable_takeaways": {
             "type": "array",
-            "maxItems": 5,
             "items": {
                 "type": "object",
                 "properties": {
@@ -254,7 +248,6 @@ FINAL_SCHEMA = {
         },
         "themes": {
             "type": "array",
-            "maxItems": 7,
             "items": {
                 "type": "object",
                 "properties": {
@@ -279,7 +272,6 @@ FINAL_SCHEMA = {
         },
         "sprint_recommendations": {
             "type": "array",
-            "maxItems": 8,
             "items": {
                 "type": "object",
                 "properties": {
