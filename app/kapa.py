@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from typing import Any
-
 import requests
 
 
@@ -32,77 +31,74 @@ class KapaClient:
 
         return response.json()
 
-    def _extract_thread_ids(self, question_answers_payload: Any) -> list[str]:
+    def _extract_qa_items(self, payload: Any) -> list[dict[str, Any]]:
         """
-        Best-effort extraction.
-        The public docs clearly show a list question-answers endpoint and a retrieve-thread endpoint,
-        but they do not clearly document the exact list response shape in the snippets we have.
-        So this method defensively checks several likely key names.
+        Normalize Kapa response into clean QA list.
+        Keeps ONLY useful fields for analysis.
         """
-        thread_ids: set[str] = set()
 
-        def walk(obj: Any) -> None:
-            if isinstance(obj, dict):
-                # likely shapes
-                for key in ("thread_id", "thread", "threadId"):
-                    value = obj.get(key)
-                    if isinstance(value, str) and value:
-                        thread_ids.add(value)
+        if isinstance(payload, dict):
+            if "results" in payload and isinstance(payload["results"], list):
+                items = payload["results"]
+            elif "data" in payload and isinstance(payload["data"], list):
+                items = payload["data"]
+            else:
+                items = [payload]
+        elif isinstance(payload, list):
+            items = payload
+        else:
+            items = [payload]
 
-                for value in obj.values():
-                    walk(value)
+        cleaned: list[dict[str, Any]] = []
 
-            elif isinstance(obj, list):
-                for item in obj:
-                    walk(item)
+        for item in items:
+            if not isinstance(item, dict):
+                continue
 
-        walk(question_answers_payload)
-        return sorted(thread_ids)
+            question = (
+                item.get("question")
+                or item.get("query")
+                or item.get("user_message")
+                or ""
+            )
+
+            answer = (
+                item.get("answer")
+                or item.get("response")
+                or item.get("assistant_message")
+                or ""
+            )
+
+            # skip empty garbage rows
+            if not question and not answer:
+                continue
+
+            cleaned.append(
+                {
+                    "question": question,
+                    "answer": answer,
+                    "timestamp": item.get("created_at") or item.get("timestamp"),
+                    "thread_id": item.get("thread_id"),
+                }
+            )
+
+        return cleaned
 
     def fetch_weekly_bundle(self, start_date: str, end_date: str) -> dict[str, Any]:
-        # Documented public endpoint:
-        # GET /query/v1/projects/:project_id/question-answers/
-        # The docs page confirms the route, but the snippet does not fully show all query params.
-        # So we pass the common window params and keep the raw response.
-        question_answers = self.get(
+        raw = self.get(
             f"/query/v1/projects/{self.project_id}/question-answers/",
             params={
                 "start_date": start_date,
                 "end_date": end_date,
+                # optional pagination hints (safe if ignored)
+                "limit": 1000,
             },
         )
 
-        # Documented public endpoint:
-        # GET /query/v1/projects/:project_id/end-users/
-        # This can be useful for additional audience context.
-        try:
-            end_users = self.get(
-                f"/query/v1/projects/{self.project_id}/end-users/",
-                params={},
-            )
-        except requests.HTTPError as e:
-            # Non-fatal; keep pipeline running if this endpoint is unavailable for your project
-            end_users = {
-                "error": str(e),
-            }
-
-        # Documented public endpoint:
-        # GET /query/v1/threads/:id/
-        # Only fetch these if we can discover thread ids in the question_answers payload.
-        thread_ids = self._extract_thread_ids(question_answers)
-        threads: dict[str, Any] = {}
-
-        for thread_id in thread_ids[:50]:
-            # cap to avoid runaway calls in the first pass
-            try:
-                threads[thread_id] = self.get(f"/query/v1/threads/{thread_id}/")
-            except requests.HTTPError as e:
-                threads[thread_id] = {"error": str(e)}
+        qa_items = self._extract_qa_items(raw)
 
         return {
             "project_id": self.project_id,
-            "question_answers": question_answers,
-            "end_users": end_users,
-            "thread_ids_discovered": thread_ids,
-            "threads": threads,
+            "question_answers": qa_items,
+            "count": len(qa_items),
         }
