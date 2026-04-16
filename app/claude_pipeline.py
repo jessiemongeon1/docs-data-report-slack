@@ -1,15 +1,17 @@
 from __future__ import annotations
 
-from typing import Any
 import json
 import math
 import time
+from typing import Any
 
 from anthropic import Anthropic, RateLimitError
 
 PLAUSIBLE_SYSTEM = """
 You analyze raw Plausible analytics JSON.
+
 Be concise, specific, and grounded only in the provided data.
+Focus on key metrics, top pages, referrals, and notable trends.
 """.strip()
 
 KAPA_CHUNK_SYSTEM = """
@@ -18,6 +20,8 @@ You analyze one raw chunk of Kapa question/answer data.
 This chunk is only part of the full dataset.
 Do not assume it represents the whole reporting period.
 Prefer recurring issues over one-off issues.
+
+Keep the output compact.
 """.strip()
 
 KAPA_SYNTHESIS_SYSTEM = """
@@ -25,6 +29,7 @@ You synthesize multiple chunk-level analyses of raw Kapa question/answer data in
 
 Merge repeated themes across chunks.
 Prefer recurring issues over one-off issues.
+Keep the output compact.
 """.strip()
 
 SYNTHESIS_SYSTEM = """
@@ -32,6 +37,7 @@ You synthesize Plausible analysis and Kapa analysis into a weekly docs report.
 
 Use only the provided analyses.
 Be specific, concise, and action-oriented.
+Avoid repeating the same point across sections.
 """.strip()
 
 
@@ -104,33 +110,15 @@ KAPA_CHUNK_SCHEMA = {
                 "properties": {
                     "name": {"type": "string"},
                     "evidence_count": {"type": "integer"},
-                    "examples": {"type": "array", "items": {"type": "string"}},
                     "insight": {"type": "string"},
                     "recommended_action": {"type": "string"},
                 },
-                "required": ["name", "evidence_count", "examples", "insight", "recommended_action"],
+                "required": ["name", "evidence_count", "insight", "recommended_action"],
                 "additionalProperties": False,
             },
-        },
-        "notable_threads": {
-            "type": "array",
-            "items": {
-                "type": "object",
-                "properties": {
-                    "title": {"type": "string"},
-                    "insight": {"type": "string"},
-                    "recommended_action": {"type": "string"},
-                },
-                "required": ["title", "insight", "recommended_action"],
-                "additionalProperties": False,
-            },
-        },
-        "open_questions": {
-            "type": "array",
-            "items": {"type": "string"},
         },
     },
-    "required": ["chunk_summary", "themes", "notable_threads", "open_questions"],
+    "required": ["chunk_summary", "themes"],
     "additionalProperties": False,
 }
 
@@ -145,29 +133,15 @@ KAPA_SYNTHESIS_SCHEMA = {
                 "properties": {
                     "name": {"type": "string"},
                     "evidence_count": {"type": "integer"},
-                    "examples": {"type": "array", "items": {"type": "string"}},
                     "insight": {"type": "string"},
                     "recommended_action": {"type": "string"},
                 },
-                "required": ["name", "evidence_count", "examples", "insight", "recommended_action"],
-                "additionalProperties": False,
-            },
-        },
-        "notable_threads": {
-            "type": "array",
-            "items": {
-                "type": "object",
-                "properties": {
-                    "title": {"type": "string"},
-                    "insight": {"type": "string"},
-                    "recommended_action": {"type": "string"},
-                },
-                "required": ["title", "insight", "recommended_action"],
+                "required": ["name", "evidence_count", "insight", "recommended_action"],
                 "additionalProperties": False,
             },
         },
     },
-    "required": ["summary", "themes", "notable_threads"],
+    "required": ["summary", "themes"],
     "additionalProperties": False,
 }
 
@@ -178,7 +152,10 @@ FINAL_SCHEMA = {
             "type": "object",
             "properties": {
                 "summary": {"type": "string"},
-                "top_priorities": {"type": "array", "items": {"type": "string"}},
+                "top_priorities": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                },
             },
             "required": ["summary", "top_priorities"],
             "additionalProperties": False,
@@ -192,9 +169,18 @@ FINAL_SCHEMA = {
                     "evidence": {"type": "string"},
                     "interpretation": {"type": "string"},
                     "recommended_action": {"type": "string"},
-                    "priority": {"type": "string", "enum": ["high", "medium", "low"]},
+                    "priority": {
+                        "type": "string",
+                        "enum": ["high", "medium", "low"],
+                    },
                 },
-                "required": ["title", "evidence", "interpretation", "recommended_action", "priority"],
+                "required": [
+                    "title",
+                    "evidence",
+                    "interpretation",
+                    "recommended_action",
+                    "priority",
+                ],
                 "additionalProperties": False,
             },
         },
@@ -205,15 +191,16 @@ FINAL_SCHEMA = {
                 "properties": {
                     "name": {"type": "string"},
                     "evidence_count": {"type": "integer"},
-                    "representative_examples": {"type": "array", "items": {"type": "string"}},
                     "why_it_matters": {"type": "string"},
                     "recommended_doc_action": {"type": "string"},
-                    "priority": {"type": "string", "enum": ["high", "medium", "low"]},
+                    "priority": {
+                        "type": "string",
+                        "enum": ["high", "medium", "low"],
+                    },
                 },
                 "required": [
                     "name",
                     "evidence_count",
-                    "representative_examples",
                     "why_it_matters",
                     "recommended_doc_action",
                     "priority",
@@ -227,17 +214,31 @@ FINAL_SCHEMA = {
                 "type": "object",
                 "properties": {
                     "title": {"type": "string"},
-                    "priority": {"type": "string", "enum": ["high", "medium", "low"]},
+                    "priority": {
+                        "type": "string",
+                        "enum": ["high", "medium", "low"],
+                    },
                     "scope": {"type": "string"},
                     "why_now": {"type": "string"},
                     "expected_impact": {"type": "string"},
                 },
-                "required": ["title", "priority", "scope", "why_now", "expected_impact"],
+                "required": [
+                    "title",
+                    "priority",
+                    "scope",
+                    "why_now",
+                    "expected_impact",
+                ],
                 "additionalProperties": False,
             },
         },
     },
-    "required": ["executive_summary", "notable_takeaways", "themes", "sprint_recommendations"],
+    "required": [
+        "executive_summary",
+        "notable_takeaways",
+        "themes",
+        "sprint_recommendations",
+    ],
     "additionalProperties": False,
 }
 
@@ -261,6 +262,7 @@ class ClaudePipeline:
                 return
             except ValueError:
                 pass
+
         time.sleep(20)
 
     def _messages_create_with_retry(self, **kwargs: Any) -> Any:
@@ -279,9 +281,8 @@ class ClaudePipeline:
         *,
         system_prompt: str,
         payload: dict[str, Any],
-        schema_name: str,
         schema: dict[str, Any],
-        max_tokens: int = 2200,
+        max_tokens: int,
     ) -> dict[str, Any]:
         response = self._messages_create_with_retry(
             model=self.model,
@@ -296,18 +297,21 @@ class ClaudePipeline:
             },
         )
 
-        structured = getattr(response, "structured_output", None)
-        if structured is not None:
-            return structured
+        stop_reason = getattr(response, "stop_reason", None)
+        if stop_reason == "max_tokens":
+            raise ValueError(
+                f"Claude output was truncated at max_tokens={max_tokens}. Increase max_tokens or shrink the schema/output."
+            )
 
-        # fallback for SDK versions that surface the JSON in content text
-        text_parts = []
+        text_parts: list[str] = []
         for block in response.content:
             if getattr(block, "type", None) == "text":
                 text_parts.append(block.text)
+
         text = "".join(text_parts).strip()
         if not text:
-            raise ValueError("Claude returned no structured output")
+            raise ValueError("Claude returned no structured output text")
+
         return json.loads(text)
 
     def _estimate_tokens(self, obj: Any) -> int:
@@ -348,14 +352,15 @@ class ClaudePipeline:
 
         if current_items:
             chunks.append({**base_payload, "raw": {field_name: current_items}})
+
         return chunks
 
     def analyze_plausible_raw(self, plausible_raw: dict[str, Any]) -> dict[str, Any]:
         return self._structured_json(
             system_prompt=PLAUSIBLE_SYSTEM,
             payload={"source": "plausible", "raw": plausible_raw},
-            schema_name="plausible_analysis",
             schema=PLAUSIBLE_SCHEMA,
+            max_tokens=2500,
         )
 
     def analyze_kapa_raw(self, kapa_raw: dict[str, Any]) -> dict[str, Any]:
@@ -366,37 +371,49 @@ class ClaudePipeline:
             return self._structured_json(
                 system_prompt=KAPA_SYNTHESIS_SYSTEM,
                 payload=initial_payload,
-                schema_name="kapa_analysis",
                 schema=KAPA_SYNTHESIS_SCHEMA,
+                max_tokens=5000,
             )
 
         qa_items = self._normalize_qa_items(kapa_raw.get("question_answers", []))
+
         target_tokens = min(self.max_input_tokens, 8000)
         chunks = self._chunk_by_local_size(
             qa_items,
             "question_answers",
-            {"source": "kapa", "chunk_type": "question_answers", "project_id": kapa_raw.get("project_id")},
+            {
+                "source": "kapa",
+                "chunk_type": "question_answers",
+                "project_id": kapa_raw.get("project_id"),
+            },
             target_tokens,
         )
+
+        print(f"Kapa estimated tokens: {initial_tokens}")
+        print(f"Kapa chunk count: {len(chunks)}")
 
         chunk_analyses: list[dict[str, Any]] = []
         for i, chunk in enumerate(chunks, start=1):
             print(f"Analyzing Kapa chunk {i}/{len(chunks)}")
             chunk_analyses.append(
                 self._structured_json(
-                system_prompt=KAPA_CHUNK_SYSTEM,
-                payload=chunk,
-                schema=KAPA_CHUNK_SCHEMA,
-                max_tokens=3500,
-            )
+                    system_prompt=KAPA_CHUNK_SYSTEM,
+                    payload=chunk,
+                    schema=KAPA_CHUNK_SCHEMA,
+                    max_tokens=3500,
+                )
             )
 
-    return self._structured_json(
-        system_prompt=KAPA_SYNTHESIS_SYSTEM,
-        payload=initial_payload,
-        schema=KAPA_SYNTHESIS_SCHEMA,
-        max_tokens=5000,
-    )
+        return self._structured_json(
+            system_prompt=KAPA_SYNTHESIS_SYSTEM,
+            payload={
+                "source": "kapa",
+                "project_id": kapa_raw.get("project_id"),
+                "chunk_analyses": chunk_analyses,
+            },
+            schema=KAPA_SYNTHESIS_SCHEMA,
+            max_tokens=5000,
+        )
 
     def synthesize(
         self,
