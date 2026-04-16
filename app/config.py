@@ -36,7 +36,7 @@ class SiteConfig:
     plausible_site_id: str
     kapa_project_id: str
     kapa_api_key_env: str
-    slack_webhook_url: str
+    slack_webhook_urls: tuple[str, ...]
 
 
 @dataclass(frozen=True)
@@ -58,17 +58,27 @@ class Settings:
 
         sites_json = os.environ["SITES_JSON"]
         parsed_sites = json.loads(sites_json)
-        sites = [
-            SiteConfig(
-                name=item["name"],
-                plausible_site_id=item["plausible_site_id"],
-                kapa_project_id=item["kapa_project_id"],
-                kapa_api_key_env=item["kapa_api_key_env"],
-                # Per-site webhook falls back to the global one if omitted.
-                slack_webhook_url=item.get("slack_webhook_url") or global_webhook,
+        sites = []
+        for item in parsed_sites:
+            # Accept either a single URL (slack_webhook_url) or a list
+            # (slack_webhook_urls). Falls back to the global webhook if neither set.
+            urls_value = item.get("slack_webhook_urls")
+            if urls_value is None:
+                single = item.get("slack_webhook_url") or global_webhook
+                webhook_urls = (single,)
+            elif isinstance(urls_value, str):
+                webhook_urls = (urls_value,)
+            else:
+                webhook_urls = tuple(urls_value)
+            sites.append(
+                SiteConfig(
+                    name=item["name"],
+                    plausible_site_id=item["plausible_site_id"],
+                    kapa_project_id=item["kapa_project_id"],
+                    kapa_api_key_env=item["kapa_api_key_env"],
+                    slack_webhook_urls=webhook_urls,
+                )
             )
-            for item in parsed_sites
-        ]
         return Settings(
             plausible_api_key=os.environ["PLAUSIBLE_API_KEY"],
             anthropic_api_key=os.environ["ANTHROPIC_API_KEY"],

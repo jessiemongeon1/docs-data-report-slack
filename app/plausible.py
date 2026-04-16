@@ -94,6 +94,15 @@ class PlausibleClient:
                     "pagination": {"limit": 25, "offset": 0},
                 }
             ),
+            "top_referrers": self.query(
+                {
+                    "date_range": [start.isoformat(), end.isoformat()],
+                    "dimensions": ["visit:referrer"],
+                    "metrics": ["visitors", "pageviews"],
+                    "order_by": [["visitors", "desc"]],
+                    "pagination": {"limit": 50, "offset": 0},
+                }
+            ),
             "timeseries": self.query(
                 {
                     "date_range": [start.isoformat(), end.isoformat()],

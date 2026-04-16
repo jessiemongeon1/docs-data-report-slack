@@ -110,7 +110,7 @@ def process_site(
         "site_slug": site_slug,
         "report_filename": report_filename,
         "report_url": report_url,
-        "slack_webhook_url": site.slack_webhook_url,
+        "slack_webhook_urls": list(site.slack_webhook_urls),
         "final_analysis": final_analysis,
     }
 
@@ -192,11 +192,12 @@ def run() -> None:
         )
         slack_blocks = json.loads(slack_blocks_raw)
 
-        notifier = SlackNotifier(site_report["slack_webhook_url"])
-        notifier.send(
-            text=f"Weekly docs analytics: {site_report['site_name']} ({start_date} to {end_date})",
-            blocks=slack_blocks,
-        )
+        for webhook_url in site_report["slack_webhook_urls"]:
+            notifier = SlackNotifier(webhook_url)
+            notifier.send(
+                text=f"Weekly docs analytics: {site_report['site_name']} ({start_date} to {end_date})",
+                blocks=slack_blocks,
+            )
 
     print(f"Saved raw data under {raw_dir}")
     print(f"Saved analyses under {analysis_dir}")
