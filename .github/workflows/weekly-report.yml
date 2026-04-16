@@ -43,7 +43,7 @@ jobs:
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
           SITES_JSON: ${{ secrets.SITES_JSON }}
           CLAUDE_MAX_INPUT_TOKENS: ${{ secrets.CLAUDE_MAX_INPUT_TOKENS }}
-          REFERRER_ALLOWLIST: "sui.io,walrus.xyz,claude.ai,chatgpt.com,gemini.google.com,github.com"
+          REFERRER_ALLOWLIST: "sui.io,walrus.xyz,claude.ai,chatgpt.com,gemini.google.com"
           REFERRER_DENYLIST: "docs.sui.io,docs.wal.app"
 
       - name: Show generated files
