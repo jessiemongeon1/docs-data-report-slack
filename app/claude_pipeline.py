@@ -45,7 +45,7 @@ SYNTHESIS_SYSTEM = """
 You synthesize Plausible analytics and Kapa Q&A analyses into a weekly docs report.
 
 SECTION RESPONSIBILITIES — each piece of information appears in exactly one place:
-- executive_summary: high-level numbers and the 4 most important action headlines only.
+- executive_summary: high-level numbers and a 2-sentence summary only. No action lists.
 - notable_takeaways: the 5 most surprising or high-impact cross-signal observations (Plausible + Kapa together). Each takeaway must contain a specific metric or count not already stated elsewhere. Do NOT restate theme names or sprint titles here.
 - themes: Kapa pain points only — what developers are struggling with and why it matters. No recommended actions here; those go in sprint_recommendations.
 - page_theme_correlations: traffic/behavior signal from Plausible mapped to a Kapa theme. One insight per row, nowhere else.
@@ -54,7 +54,6 @@ SECTION RESPONSIBILITIES — each piece of information appears in exactly one pl
 
 Output limits — strictly enforce these:
 - executive_summary.summary: 2 sentences max.
-- executive_summary.top_priorities: at most 4 items, 1 sentence each, no duplication of sprint titles.
 - page_theme_correlations: at most 8 items. insight: 1 sentence, under 15 words.
 - notable_takeaways: at most 4 items. evidence: exact metric/count only (no prose). interpretation: 1 sentence. recommended_action: omit — actions go in sprint_recommendations only.
 - themes: at most 6 items. why_it_matters: 1 sentence, under 20 words. recommended_doc_action: omit — actions go in sprint_recommendations only.
@@ -65,9 +64,10 @@ Content rules:
 - In chatbot_referrals, include every referral source identifiable as a chatbot or AI agent.
 - For notable_takeaways, evidence must be a raw number or metric — never "several", "many", or vague phrases.
 - For sprint_recommendations, category must be exactly one of:
-    - documentation_action
-    - tooling_action
-    - developer_experience_action
+    - documentation_action: changes to existing documentation pages (new guides, clarifications, restructuring, missing reference content, broken examples).
+    - tooling_action: improvements to existing developer tooling (better CLI error messages, clearer Move compiler diagnostics, SDK error handling, IDE plugin fixes, framework documentation gaps that should be solved by tooling output rather than docs). Tooling actions improve tools that already exist.
+    - developer_experience_action: net-new capabilities that do not yet exist (new tools, new SDK features, new CLI commands, new dashboards, new APIs, new observability surfaces, new templates). DX actions propose new things to build, not fixes to existing things.
+- Each sprint recommendation must belong to exactly one category. Do not duplicate the same recommendation across categories. If a finding could fit multiple categories, place it in the most specific one (tooling_action over documentation_action when the underlying issue is tool output; developer_experience_action only when the proposed solution does not yet exist in any form).
 - If you find yourself writing the same finding in two sections, delete it from the lower-priority section. Priority order: sprint_recommendations > notable_takeaways > themes > executive_summary.
 """.strip()
 
@@ -188,16 +188,11 @@ FINAL_SCHEMA = {
                 "summary": {"type": "string"},
                 "total_kapa_conversations": {"type": "integer"},
                 "total_themes_identified": {"type": "integer"},
-                "top_priorities": {
-                    "type": "array",
-                    "items": {"type": "string"},
-                },
             },
             "required": [
                 "summary",
                 "total_kapa_conversations",
                 "total_themes_identified",
-                "top_priorities",
             ],
             "additionalProperties": False,
         },

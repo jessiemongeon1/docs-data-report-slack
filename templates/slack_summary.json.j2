@@ -35,13 +35,6 @@
     "type": "section",
     "text": {
       "type": "mrkdwn",
-      "text": "*🎯 Top priorities*\n{% for item in site.final_analysis.executive_summary.top_priorities %}• {{ item | replace('\n', ' ') }}\n{% endfor %}"
-    }
-  }
-  ,{
-    "type": "section",
-    "text": {
-      "type": "mrkdwn",
       "text": "*📌 Notable takeaways*\n{% for t in site.final_analysis.notable_takeaways %}{% set icon = '🔴' if t.priority == 'high' else ('🟡' if t.priority == 'medium' else '🟢') %}{{ icon }} *{{ t.title | replace('\n', ' ') }}*  `{{ t.priority }}`\n   _{{ t.evidence | replace('\n', ' ') }}_ — {{ t.interpretation | replace('\n', ' ') }}\n{% endfor %}"
     }
   }

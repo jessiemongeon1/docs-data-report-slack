@@ -106,13 +106,34 @@ def process_site(
     )
     report_path.write_text(html, encoding="utf-8")
 
-    # Surface every referrer URL to the Slack template (sorted by visitors desc
-    # by Plausible). Direct/no-referrer entries are filtered out.
+    # Surface referrer URLs to the Slack template (sorted by visitors desc
+    # by Plausible). Direct/no-referrer entries are filtered out. If
+    # REFERRER_ALLOWLIST is set, only referrers whose hostname matches one of
+    # the listed domains (or any of their subdomains) are included.
     top_referrers_raw = (
         plausible_raw.get("top_referrers", {}).get("results", [])
         if isinstance(plausible_raw, dict)
         else []
     )
+
+    allowlist_raw = os.getenv("REFERRER_ALLOWLIST", "").strip()
+    allowlist = [
+        d.strip().lower().lstrip(".")
+        for d in allowlist_raw.split(",")
+        if d.strip()
+    ]
+
+    def _matches_allowlist(referrer: str) -> bool:
+        if not allowlist:
+            return True
+        # Strip scheme and path; keep just the host.
+        host = referrer.lower()
+        if "://" in host:
+            host = host.split("://", 1)[1]
+        host = host.split("/", 1)[0]
+        # Match the exact domain or any subdomain of an allowed domain.
+        return any(host == d or host.endswith("." + d) for d in allowlist)
+
     top_referrers: list[dict[str, Any]] = []
     for row in top_referrers_raw:
         dimensions = row.get("dimensions") or []
@@ -121,6 +142,8 @@ def process_site(
             continue
         referrer = dimensions[0]
         if not referrer or referrer == "Direct / None":
+            continue
+        if not _matches_allowlist(referrer):
             continue
         top_referrers.append({
             "referrer": referrer,

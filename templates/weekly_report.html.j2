@@ -186,12 +186,6 @@ section + section { border-top: 1px solid var(--border); }
         <h4>Summary</h4>
         <p>{{ final_analysis.executive_summary.summary }}</p>
       </div>
-      {% for p in final_analysis.executive_summary.top_priorities %}
-      <div class="takeaway warn">
-        <h4>Priority {{ loop.index }}</h4>
-        <p>{{ p }}</p>
-      </div>
-      {% endfor %}
     </div>
   </section>
 
