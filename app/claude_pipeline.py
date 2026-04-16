@@ -44,10 +44,11 @@ You synthesize Plausible analytics and Kapa Q&A analyses into a weekly docs repo
 
 Rules:
 - State the exact total number of Kapa conversations analyzed in the executive summary.
-- State the exact number of page views for top 20 pages.
+- State the top 20 viewed pages from Plausible.
+- State the correlation between top viewed pages on Plausible and top themes from Kapa.
+- Include details about Plausible referral sources that are chatbots/agents.
 - State the exact number of distinct themes identified.
 - For notable_takeaways, every item must include concrete evidence (exact counts or metric values, not vague phrases like "several" or "many").
-- Include examples of the evidence. 
 - For sprint_recommendations, categorize each item under exactly one of:
     - documentation_action (missing, unclear, or outdated docs)
     - tooling_action (SDK, CLI, API, or integration issues surfaced by users)
@@ -407,7 +408,7 @@ class ClaudePipeline:
                 system_prompt=KAPA_SYNTHESIS_SYSTEM,
                 payload=initial_payload,
                 schema=KAPA_SYNTHESIS_SCHEMA,
-                max_tokens=5000,
+                max_tokens=8000,
             )
 
         qa_items = self._normalize_qa_items(kapa_raw.get("question_answers", []))
@@ -435,7 +436,7 @@ class ClaudePipeline:
                     system_prompt=KAPA_CHUNK_SYSTEM,
                     payload=chunk,
                     schema=KAPA_CHUNK_SCHEMA,
-                    max_tokens=5500,
+                    max_tokens=3500,
                 )
             )
 
