@@ -123,16 +123,31 @@ def process_site(
         if d.strip()
     ]
 
-    def _matches_allowlist(referrer: str) -> bool:
-        if not allowlist:
-            return True
+    denylist_raw = os.getenv("REFERRER_DENYLIST", "").strip()
+    denylist = [
+        d.strip().lower().lstrip(".")
+        for d in denylist_raw.split(",")
+        if d.strip()
+    ]
+
+    def _hostname(referrer: str) -> str:
         # Strip scheme and path; keep just the host.
         host = referrer.lower()
         if "://" in host:
             host = host.split("://", 1)[1]
         host = host.split("/", 1)[0]
+        return host
+
+    def _matches_allowlist(host: str) -> bool:
+        if not allowlist:
+            return True
         # Match the exact domain or any subdomain of an allowed domain.
         return any(host == d or host.endswith("." + d) for d in allowlist)
+
+    def _matches_denylist(host: str) -> bool:
+        # Denylist is exact-match only so a deny entry like "docs.sui.io"
+        # filters that subdomain without removing the rest of "sui.io".
+        return host in denylist
 
     top_referrers: list[dict[str, Any]] = []
     for row in top_referrers_raw:
@@ -143,7 +158,10 @@ def process_site(
         referrer = dimensions[0]
         if not referrer or referrer == "Direct / None":
             continue
-        if not _matches_allowlist(referrer):
+        host = _hostname(referrer)
+        if _matches_denylist(host):
+            continue
+        if not _matches_allowlist(host):
             continue
         top_referrers.append({
             "referrer": referrer,
