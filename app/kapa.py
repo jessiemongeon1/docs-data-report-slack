@@ -1,35 +1,63 @@
 from __future__ import annotations
 
+import time
 from typing import Any
 import requests
 
 
 class KapaClient:
     base_url = "https://api.kapa.ai"
+    max_attempts = 5
+    initial_backoff_seconds = 2.0
 
     def __init__(self, api_key: str, project_id: str) -> None:
         self.api_key = api_key
         self.project_id = project_id
 
     def get(self, path: str, params: dict[str, Any] | None = None) -> dict[str, Any]:
-        response = requests.get(
-            f"{self.base_url}{path}",
-            headers={
-                "X-API-KEY": self.api_key,
-                "Content-Type": "application/json",
-            },
-            params=params,
-            timeout=90,
-        )
+        last_exc: Exception | None = None
+        for attempt in range(1, self.max_attempts + 1):
+            try:
+                response = requests.get(
+                    f"{self.base_url}{path}",
+                    headers={
+                        "X-API-KEY": self.api_key,
+                        "Content-Type": "application/json",
+                    },
+                    params=params,
+                    timeout=90,
+                )
+            except (requests.ConnectionError, requests.Timeout) as e:
+                last_exc = e
+                if attempt == self.max_attempts:
+                    raise
+                backoff = self.initial_backoff_seconds * (2 ** (attempt - 1))
+                print(
+                    f"Kapa request failed ({type(e).__name__}); "
+                    f"retrying in {backoff:.0f}s (attempt {attempt}/{self.max_attempts})"
+                )
+                time.sleep(backoff)
+                continue
 
-        try:
-            response.raise_for_status()
-        except requests.HTTPError as e:
-            raise requests.HTTPError(
-                f"Kapa API error {response.status_code}: {response.text}"
-            ) from e
+            if response.status_code >= 500 and attempt < self.max_attempts:
+                backoff = self.initial_backoff_seconds * (2 ** (attempt - 1))
+                print(
+                    f"Kapa returned {response.status_code}; "
+                    f"retrying in {backoff:.0f}s (attempt {attempt}/{self.max_attempts})"
+                )
+                time.sleep(backoff)
+                continue
 
-        return response.json()
+            try:
+                response.raise_for_status()
+            except requests.HTTPError as e:
+                raise requests.HTTPError(
+                    f"Kapa API error {response.status_code}: {response.text}"
+                ) from e
+
+            return response.json()
+
+        raise RuntimeError("Kapa query exhausted retries") from last_exc
 
     def _extract_qa_items(self, payload: Any) -> list[dict[str, Any]]:
         """

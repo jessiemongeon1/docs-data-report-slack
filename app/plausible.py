@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import time
 from datetime import date, datetime, timedelta
 from typing import Any
 
@@ -8,30 +9,62 @@ import requests
 
 class PlausibleClient:
     base_url = "https://plausible.io/api/v2/query"
+    # Retry on connection-level failures and 5xx responses. Backoff is exponential:
+    # 2s, 4s, 8s, 16s between attempts.
+    max_attempts = 5
+    initial_backoff_seconds = 2.0
 
     def __init__(self, api_key: str, site_id: str) -> None:
         self.api_key = api_key
         self.site_id = site_id
 
     def query(self, payload: dict[str, Any]) -> dict[str, Any]:
-        response = requests.post(
-            self.base_url,
-            headers={
-                "Authorization": f"Bearer {self.api_key}",
-                "Content-Type": "application/json",
-            },
-            json={"site_id": self.site_id, **payload},
-            timeout=90,
-        )
+        last_exc: Exception | None = None
+        for attempt in range(1, self.max_attempts + 1):
+            try:
+                response = requests.post(
+                    self.base_url,
+                    headers={
+                        "Authorization": f"Bearer {self.api_key}",
+                        "Content-Type": "application/json",
+                    },
+                    json={"site_id": self.site_id, **payload},
+                    timeout=90,
+                )
+            except (requests.ConnectionError, requests.Timeout) as e:
+                last_exc = e
+                if attempt == self.max_attempts:
+                    raise
+                backoff = self.initial_backoff_seconds * (2 ** (attempt - 1))
+                print(
+                    f"Plausible request failed ({type(e).__name__}); "
+                    f"retrying in {backoff:.0f}s (attempt {attempt}/{self.max_attempts})"
+                )
+                time.sleep(backoff)
+                continue
 
-        try:
-            response.raise_for_status()
-        except requests.HTTPError as e:
-            raise requests.HTTPError(
-                f"Plausible API error {response.status_code}: {response.text}"
-            ) from e
+            # Retry on transient server errors. 4xx errors should fail immediately
+            # since they typically indicate a bad request or auth problem.
+            if response.status_code >= 500 and attempt < self.max_attempts:
+                backoff = self.initial_backoff_seconds * (2 ** (attempt - 1))
+                print(
+                    f"Plausible returned {response.status_code}; "
+                    f"retrying in {backoff:.0f}s (attempt {attempt}/{self.max_attempts})"
+                )
+                time.sleep(backoff)
+                continue
 
-        return response.json()
+            try:
+                response.raise_for_status()
+            except requests.HTTPError as e:
+                raise requests.HTTPError(
+                    f"Plausible API error {response.status_code}: {response.text}"
+                ) from e
+
+            return response.json()
+
+        # Defensive: loop should always either return or raise.
+        raise RuntimeError("Plausible query exhausted retries") from last_exc
 
     @staticmethod
     def _parse_iso_date(value: str) -> date:
