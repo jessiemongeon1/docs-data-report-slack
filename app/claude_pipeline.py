@@ -19,7 +19,10 @@ You analyze one raw chunk of Kapa question/answer data.
 
 This chunk is only part of the full dataset.
 Do not assume it represents the whole reporting period.
-Prefer recurring issues over one-off issues.
+
+For each theme you identify:
+- Count the exact number of conversations that support it (evidence_count must reflect actual Q&A items in the chunk).
+- Prefer recurring issues over one-off issues.
 
 Keep the output compact.
 """.strip()
@@ -27,17 +30,31 @@ Keep the output compact.
 KAPA_SYNTHESIS_SYSTEM = """
 You synthesize multiple chunk-level analyses of raw Kapa question/answer data into one weekly Kapa analysis.
 
-Merge repeated themes across chunks.
-Prefer recurring issues over one-off issues.
+Rules:
+- Sum evidence_count values across chunks when merging the same theme.
+- Report the exact total conversation count (sum of all evidence_counts across all themes).
+- Merge repeated themes; do not duplicate them.
+- Prefer recurring issues over one-off issues.
+
 Keep the output compact.
 """.strip()
 
 SYNTHESIS_SYSTEM = """
-You synthesize Plausible analysis and Kapa analysis into a weekly docs report.
+You synthesize Plausible analytics and Kapa Q&A analyses into a weekly docs report.
 
-Use only the provided analyses.
-Be specific, concise, and action-oriented.
-Avoid repeating the same point across sections.
+Rules:
+- State the exact total number of Kapa conversations analyzed in the executive summary.
+- State the exact number of page views for top 20 pages.
+- State the exact number of distinct themes identified.
+- For notable_takeaways, every item must include concrete evidence (exact counts or metric values, not vague phrases like "several" or "many").
+- Include examples of the evidence. 
+- For sprint_recommendations, categorize each item under exactly one of:
+    - documentation_action (missing, unclear, or outdated docs)
+    - tooling_action (SDK, CLI, API, or integration issues surfaced by users)
+    - developer_experience_action (onboarding friction, confusing UX, workflow gaps)
+  Include this category as a field in each sprint recommendation.
+- Be specific, concise, and action-oriented.
+- Do not repeat the same point across sections.
 """.strip()
 
 
@@ -126,6 +143,8 @@ KAPA_SYNTHESIS_SCHEMA = {
     "type": "object",
     "properties": {
         "summary": {"type": "string"},
+        "total_conversations": {"type": "integer"},
+        "total_themes": {"type": "integer"},
         "themes": {
             "type": "array",
             "items": {
@@ -141,7 +160,7 @@ KAPA_SYNTHESIS_SCHEMA = {
             },
         },
     },
-    "required": ["summary", "themes"],
+    "required": ["summary", "total_conversations", "total_themes", "themes"],
     "additionalProperties": False,
 }
 
@@ -152,12 +171,19 @@ FINAL_SCHEMA = {
             "type": "object",
             "properties": {
                 "summary": {"type": "string"},
+                "total_kapa_conversations": {"type": "integer"},
+                "total_themes_identified": {"type": "integer"},
                 "top_priorities": {
                     "type": "array",
                     "items": {"type": "string"},
                 },
             },
-            "required": ["summary", "top_priorities"],
+            "required": [
+                "summary",
+                "total_kapa_conversations",
+                "total_themes_identified",
+                "top_priorities",
+            ],
             "additionalProperties": False,
         },
         "notable_takeaways": {
@@ -214,6 +240,14 @@ FINAL_SCHEMA = {
                 "type": "object",
                 "properties": {
                     "title": {"type": "string"},
+                    "category": {
+                        "type": "string",
+                        "enum": [
+                            "documentation_action",
+                            "tooling_action",
+                            "developer_experience_action",
+                        ],
+                    },
                     "priority": {
                         "type": "string",
                         "enum": ["high", "medium", "low"],
@@ -224,6 +258,7 @@ FINAL_SCHEMA = {
                 },
                 "required": [
                     "title",
+                    "category",
                     "priority",
                     "scope",
                     "why_now",
