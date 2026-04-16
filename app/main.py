@@ -110,6 +110,7 @@ def process_site(
         "site_slug": site_slug,
         "report_filename": report_filename,
         "report_url": report_url,
+        "slack_webhook_url": site.slack_webhook_url,
         "final_analysis": final_analysis,
     }
 
@@ -176,23 +177,26 @@ def run() -> None:
     write_latest_reports(reports_dir, latest_dir)
     (latest_dir / "index.html").write_text(index_html, encoding="utf-8")
 
-    slack_blocks_raw = render_html(
-        Path("templates"),
-        "slack_summary.json.j2",
-        {
-            "start_date": start_date,
-            "end_date": end_date,
-            "run_id": run_id,
-            "site_reports": site_reports,
-        },
-    )
-    slack_blocks = json.loads(slack_blocks_raw)
+    # Send a separate Slack notification to each site's webhook.
+    for site_report in site_reports:
+        slack_blocks_raw = render_html(
+            Path("templates"),
+            "slack_summary.json.j2",
+            {
+                "start_date": start_date,
+                "end_date": end_date,
+                "run_id": run_id,
+                # Pass only this site's report so the template renders one site.
+                "site_reports": [site_report],
+            },
+        )
+        slack_blocks = json.loads(slack_blocks_raw)
 
-    notifier = SlackNotifier(settings.slack_webhook_url)
-    notifier.send(
-        text=f"Weekly docs analytics summary ({start_date} to {end_date})",
-        blocks=slack_blocks,
-    )
+        notifier = SlackNotifier(site_report["slack_webhook_url"])
+        notifier.send(
+            text=f"Weekly docs analytics: {site_report['site_name']} ({start_date} to {end_date})",
+            blocks=slack_blocks,
+        )
 
     print(f"Saved raw data under {raw_dir}")
     print(f"Saved analyses under {analysis_dir}")
