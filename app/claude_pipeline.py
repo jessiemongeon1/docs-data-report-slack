@@ -291,7 +291,6 @@ class ClaudePipeline:
             output_config={
                 "format": {
                     "type": "json_schema",
-                    "name": schema_name,
                     "schema": schema,
                 }
             },
