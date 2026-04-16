@@ -15,17 +15,17 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
+      - uses: actions/checkout@v4
         with:
-          python-version: '3.11'
-
-      - name: Install dependencies
-        run: pip install -r requirements.txt
-
-      - name: Run report pipeline
+          persist-credentials: true
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+        
+      - run: pip install -r requirements.txt
+      
+      - name: Run weekly report
+        run: python -m app.main
         env:
           PLAUSIBLE_API_KEY: ${{ secrets.PLAUSIBLE_API_KEY }}
           KAPA_API_KEY_SUI: ${{ secrets.KAPA_API_KEY_SUI }}
@@ -33,20 +33,14 @@ jobs:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
           SITES_JSON: ${{ secrets.SITES_JSON }}
-          REPORT_BASE_URL: ${{ secrets.REPORT_BASE_URL }}
-        run: python -m app.main
-
-      - name: Upload artifacts
+          CLAUDE_MAX_INPUT_TOKENS: ${{ secrets.CLAUDE_MAX_INPUT_TOKENS }}
+        
+      - name: Upload report artifact
         uses: actions/upload-artifact@v4
         with:
-          name: weekly-analytics-artifacts
-          path: artifacts/
-
-      - name: Upload site for Pages
-        uses: actions/upload-pages-artifact@v3
-        with:
-          path: site
-
+          name: weekly-html-reports
+          path: reports
+        
       - name: Commit reports
         run: |
           git config user.name "github-actions"
