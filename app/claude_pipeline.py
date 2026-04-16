@@ -23,8 +23,9 @@ Do not assume it represents the whole reporting period.
 For each theme you identify:
 - Count the exact number of conversations that support it (evidence_count must reflect actual Q&A items in the chunk).
 - Prefer recurring issues over one-off issues.
-
-Keep the output compact.
+- Return at most 5 themes. Merge minor ones into the closest major theme rather than listing them separately.
+- chunk_summary: 1 sentence only.
+- insight and recommended_action: 1 sentence each, under 20 words.
 """.strip()
 
 KAPA_SYNTHESIS_SYSTEM = """
@@ -35,28 +36,37 @@ Rules:
 - Report the exact total conversation count (sum of all evidence_counts across all themes).
 - Merge repeated themes; do not duplicate them.
 - Prefer recurring issues over one-off issues.
-
-Keep the output compact.
+- Return at most 7 themes total.
+- summary: 2 sentences max.
+- insight and recommended_action: 1 sentence each, under 20 words.
 """.strip()
 
 SYNTHESIS_SYSTEM = """
 You synthesize Plausible analytics and Kapa Q&A analyses into a weekly docs report.
 
-Rules:
+Output limits — strictly enforce these:
+- executive_summary.summary: 3 sentences max.
+- executive_summary.top_priorities: at most 4 items, 1 sentence each.
+- page_theme_correlations: at most 10 items. insight: 1 sentence, under 20 words.
+- chatbot_referrals: all chatbot/agent referral sources found; insight: 1 sentence each.
+- notable_takeaways: at most 5 items. evidence, interpretation, recommended_action: 1 sentence each, under 25 words.
+- themes: at most 7 items. why_it_matters and recommended_doc_action: 1 sentence each, under 20 words.
+- sprint_recommendations: at most 8 items total (across all categories). scope, why_now, expected_impact: 1 sentence each, under 20 words.
+
+Content rules:
 - State the exact total number of Kapa conversations analyzed in the executive summary.
-- State the top 20 viewed pages from Plausible.
-- State the correlation between top viewed pages on Plausible and top themes from Kapa.
-- Include details about Plausible referral sources that are chatbots/agents.
 - State the exact number of distinct themes identified.
-- For notable_takeaways, every item must include concrete evidence (exact counts or metric values, not vague phrases like "several" or "many").
+- List the top 20 viewed pages from Plausible in the top_pages field of the plausible analysis.
+- In page_theme_correlations, map each high-traffic Plausible page to its closest matching Kapa theme where one exists.
+- In chatbot_referrals, include every referral source that is identifiable as a chatbot or AI agent.
+- For notable_takeaways, every evidence field must contain exact counts or metric values — never "several" or "many".
 - For sprint_recommendations, categorize each item under exactly one of:
     - documentation_action (missing, unclear, or outdated docs)
     - tooling_action (SDK, CLI, API, or integration issues surfaced by users)
     - developer_experience_action (onboarding friction, confusing UX, workflow gaps)
-  Include this category as a field in each sprint recommendation.
-- Be specific, concise, and action-oriented.
 - Do not repeat the same point across sections.
 """.strip()
+
 
 PLAUSIBLE_SCHEMA = {
     "type": "object",
@@ -77,6 +87,7 @@ PLAUSIBLE_SCHEMA = {
         },
         "top_pages": {
             "type": "array",
+            "maxItems": 20,
             "items": {
                 "type": "object",
                 "properties": {
@@ -93,9 +104,10 @@ PLAUSIBLE_SCHEMA = {
                 "type": "object",
                 "properties": {
                     "source": {"type": "string"},
+                    "is_chatbot_or_agent": {"type": "boolean"},
                     "insight": {"type": "string"},
                 },
-                "required": ["source", "insight"],
+                "required": ["source", "is_chatbot_or_agent", "insight"],
                 "additionalProperties": False,
             },
         },
@@ -115,7 +127,7 @@ PLAUSIBLE_SCHEMA = {
     "required": ["summary", "key_metrics", "top_pages", "referrals", "trends"],
     "additionalProperties": False,
 }
- 
+
 KAPA_CHUNK_SCHEMA = {
     "type": "object",
     "properties": {
@@ -139,7 +151,7 @@ KAPA_CHUNK_SCHEMA = {
     "required": ["chunk_summary", "themes"],
     "additionalProperties": False,
 }
- 
+
 KAPA_SYNTHESIS_SCHEMA = {
     "type": "object",
     "properties": {
@@ -165,7 +177,7 @@ KAPA_SYNTHESIS_SCHEMA = {
     "required": ["summary", "total_conversations", "total_themes", "themes"],
     "additionalProperties": False,
 }
- 
+
 FINAL_SCHEMA = {
     "type": "object",
     "properties": {
@@ -188,6 +200,32 @@ FINAL_SCHEMA = {
                 "top_priorities",
             ],
             "additionalProperties": False,
+        },
+        "page_theme_correlations": {
+            "type": "array",
+            "maxItems": 10,
+            "items": {
+                "type": "object",
+                "properties": {
+                    "page": {"type": "string"},
+                    "related_kapa_theme": {"type": "string"},
+                    "insight": {"type": "string"},
+                },
+                "required": ["page", "related_kapa_theme", "insight"],
+                "additionalProperties": False,
+            },
+        },
+        "chatbot_referrals": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "source": {"type": "string"},
+                    "insight": {"type": "string"},
+                },
+                "required": ["source", "insight"],
+                "additionalProperties": False,
+            },
         },
         "notable_takeaways": {
             "type": "array",
@@ -276,36 +314,38 @@ FINAL_SCHEMA = {
     },
     "required": [
         "executive_summary",
+        "page_theme_correlations",
+        "chatbot_referrals",
         "notable_takeaways",
         "themes",
         "sprint_recommendations",
     ],
     "additionalProperties": False,
 }
- 
- 
+
+
 class ClaudePipeline:
     def __init__(self, api_key: str, model: str, max_input_tokens: int = 8000) -> None:
         self.client = Anthropic(api_key=api_key)
         self.model = model
         self.max_input_tokens = max_input_tokens
- 
+
     def _sleep_from_rate_limit(self, exc: RateLimitError) -> None:
         retry_after = None
         response = getattr(exc, "response", None)
         headers = getattr(response, "headers", None)
         if headers:
             retry_after = headers.get("retry-after")
- 
+
         if retry_after:
             try:
                 time.sleep(float(retry_after) + 1.0)
                 return
             except ValueError:
                 pass
- 
+
         time.sleep(20)
- 
+
     def _messages_create_with_retry(self, **kwargs: Any) -> Any:
         attempts = 0
         while True:
@@ -316,7 +356,7 @@ class ClaudePipeline:
                 if attempts >= 6:
                     raise
                 self._sleep_from_rate_limit(exc)
- 
+
     def _structured_json(
         self,
         *,
@@ -337,28 +377,28 @@ class ClaudePipeline:
                 }
             },
         )
- 
+
         stop_reason = getattr(response, "stop_reason", None)
         if stop_reason == "max_tokens":
             raise ValueError(
                 f"Claude output was truncated at max_tokens={max_tokens}. Increase max_tokens or shrink the schema/output."
             )
- 
+
         text_parts: list[str] = []
         for block in response.content:
             if getattr(block, "type", None) == "text":
                 text_parts.append(block.text)
- 
+
         text = "".join(text_parts).strip()
         if not text:
             raise ValueError("Claude returned no structured output text")
- 
+
         return json.loads(text)
- 
+
     def _estimate_tokens(self, obj: Any) -> int:
         text = json.dumps(obj, ensure_ascii=False)
         return max(1, math.ceil(len(text) / 4))
- 
+
     def _normalize_qa_items(self, question_answers: Any) -> list[Any]:
         if isinstance(question_answers, list):
             return question_answers
@@ -369,7 +409,7 @@ class ClaudePipeline:
                 return question_answers["data"]
             return [question_answers]
         return [question_answers]
- 
+
     def _chunk_by_local_size(
         self,
         items: list[Any],
@@ -380,7 +420,7 @@ class ClaudePipeline:
         chunks: list[dict[str, Any]] = []
         current_items: list[Any] = []
         current_tokens = self._estimate_tokens(base_payload)
- 
+
         for item in items:
             item_tokens = self._estimate_tokens(item)
             if current_items and current_tokens + item_tokens > target_tokens:
@@ -390,12 +430,12 @@ class ClaudePipeline:
             else:
                 current_items.append(item)
                 current_tokens += item_tokens
- 
+
         if current_items:
             chunks.append({**base_payload, "raw": {field_name: current_items}})
- 
+
         return chunks
- 
+
     def analyze_plausible_raw(self, plausible_raw: dict[str, Any]) -> dict[str, Any]:
         return self._structured_json(
             system_prompt=PLAUSIBLE_SYSTEM,
@@ -403,11 +443,11 @@ class ClaudePipeline:
             schema=PLAUSIBLE_SCHEMA,
             max_tokens=2500,
         )
- 
+
     def analyze_kapa_raw(self, kapa_raw: dict[str, Any]) -> dict[str, Any]:
         initial_payload = {"source": "kapa", "raw": kapa_raw}
         initial_tokens = self._estimate_tokens(initial_payload)
- 
+
         if initial_tokens <= self.max_input_tokens:
             return self._structured_json(
                 system_prompt=KAPA_SYNTHESIS_SYSTEM,
@@ -415,9 +455,9 @@ class ClaudePipeline:
                 schema=KAPA_SYNTHESIS_SCHEMA,
                 max_tokens=8000,
             )
- 
+
         qa_items = self._normalize_qa_items(kapa_raw.get("question_answers", []))
- 
+
         target_tokens = min(self.max_input_tokens, 8000)
         chunks = self._chunk_by_local_size(
             qa_items,
@@ -429,10 +469,10 @@ class ClaudePipeline:
             },
             target_tokens,
         )
- 
+
         print(f"Kapa estimated tokens: {initial_tokens}")
         print(f"Kapa chunk count: {len(chunks)}")
- 
+
         chunk_analyses: list[dict[str, Any]] = []
         for i, chunk in enumerate(chunks, start=1):
             print(f"Analyzing Kapa chunk {i}/{len(chunks)}")
@@ -444,7 +484,7 @@ class ClaudePipeline:
                     max_tokens=3500,
                 )
             )
- 
+
         return self._structured_json(
             system_prompt=KAPA_SYNTHESIS_SYSTEM,
             payload={
@@ -455,7 +495,7 @@ class ClaudePipeline:
             schema=KAPA_SYNTHESIS_SCHEMA,
             max_tokens=8000,
         )
- 
+
     def synthesize(
         self,
         metadata: dict[str, Any],
@@ -469,9 +509,6 @@ class ClaudePipeline:
                 "plausible_analysis": plausible_analysis,
                 "kapa_analysis": kapa_analysis,
             },
-            schema=FINAL_SCHEMA,
-            max_tokens=8000,
-        )
             schema=FINAL_SCHEMA,
             max_tokens=8000,
         )
