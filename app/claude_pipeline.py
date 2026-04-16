@@ -44,27 +44,31 @@ Rules:
 SYNTHESIS_SYSTEM = """
 You synthesize Plausible analytics and Kapa Q&A analyses into a weekly docs report.
 
+SECTION RESPONSIBILITIES — each piece of information appears in exactly one place:
+- executive_summary: high-level numbers and the 4 most important action headlines only.
+- notable_takeaways: the 5 most surprising or high-impact cross-signal observations (Plausible + Kapa together). Each takeaway must contain a specific metric or count not already stated elsewhere. Do NOT restate theme names or sprint titles here.
+- themes: Kapa pain points only — what developers are struggling with and why it matters. No recommended actions here; those go in sprint_recommendations.
+- page_theme_correlations: traffic/behavior signal from Plausible mapped to a Kapa theme. One insight per row, nowhere else.
+- sprint_recommendations: the concrete work to do. Title must differ from theme names and takeaway titles. Each item is self-contained; do not reference or repeat evidence already in takeaways or themes.
+- chatbot_referrals: AI referral sources only; no overlap with other sections.
+
 Output limits — strictly enforce these:
-- executive_summary.summary: 3 sentences max.
-- executive_summary.top_priorities: at most 4 items, 1 sentence each.
-- page_theme_correlations: at most 10 items. insight: 1 sentence, under 20 words.
-- chatbot_referrals: all chatbot/agent referral sources found; insight: 1 sentence each.
-- notable_takeaways: at most 5 items. evidence, interpretation, recommended_action: 1 sentence each, under 25 words.
-- themes: at most 7 items. why_it_matters and recommended_doc_action: 1 sentence each, under 20 words.
-- sprint_recommendations: at most 8 items total (across all categories). scope, why_now, expected_impact: 1 sentence each, under 20 words.
+- executive_summary.summary: 2 sentences max.
+- executive_summary.top_priorities: at most 4 items, 1 sentence each, no duplication of sprint titles.
+- page_theme_correlations: at most 8 items. insight: 1 sentence, under 15 words.
+- notable_takeaways: at most 4 items. evidence: exact metric/count only (no prose). interpretation: 1 sentence. recommended_action: omit — actions go in sprint_recommendations only.
+- themes: at most 6 items. why_it_matters: 1 sentence, under 20 words. recommended_doc_action: omit — actions go in sprint_recommendations only.
+- sprint_recommendations: at most 7 items total. scope, why_now, expected_impact: 1 sentence each, under 20 words.
 
 Content rules:
-- State the exact total number of Kapa conversations analyzed in the executive summary.
-- State the exact number of distinct themes identified.
-- List the top 20 viewed pages from Plausible in the top_pages field of the plausible analysis.
-- In page_theme_correlations, map each high-traffic Plausible page to its closest matching Kapa theme where one exists.
-- In chatbot_referrals, include every referral source that is identifiable as a chatbot or AI agent.
-- For notable_takeaways, every evidence field must contain exact counts or metric values — never "several" or "many".
-- For sprint_recommendations, categorize each item under exactly one of:
-    - documentation_action (missing, unclear, or outdated docs)
-    - tooling_action (SDK, CLI, API, or integration issues surfaced by users)
-    - developer_experience_action (onboarding friction, confusing UX, workflow gaps)
-- Do not repeat the same point across sections.
+- State the exact total number of Kapa conversations and distinct themes in the executive summary.
+- In chatbot_referrals, include every referral source identifiable as a chatbot or AI agent.
+- For notable_takeaways, evidence must be a raw number or metric — never "several", "many", or vague phrases.
+- For sprint_recommendations, category must be exactly one of:
+    - documentation_action
+    - tooling_action
+    - developer_experience_action
+- If you find yourself writing the same finding in two sections, delete it from the lower-priority section. Priority order: sprint_recommendations > notable_takeaways > themes > executive_summary.
 """.strip()
 
 
@@ -230,7 +234,6 @@ FINAL_SCHEMA = {
                     "title": {"type": "string"},
                     "evidence": {"type": "string"},
                     "interpretation": {"type": "string"},
-                    "recommended_action": {"type": "string"},
                     "priority": {
                         "type": "string",
                         "enum": ["high", "medium", "low"],
@@ -240,7 +243,6 @@ FINAL_SCHEMA = {
                     "title",
                     "evidence",
                     "interpretation",
-                    "recommended_action",
                     "priority",
                 ],
                 "additionalProperties": False,
@@ -254,7 +256,6 @@ FINAL_SCHEMA = {
                     "name": {"type": "string"},
                     "evidence_count": {"type": "integer"},
                     "why_it_matters": {"type": "string"},
-                    "recommended_doc_action": {"type": "string"},
                     "priority": {
                         "type": "string",
                         "enum": ["high", "medium", "low"],
@@ -264,7 +265,6 @@ FINAL_SCHEMA = {
                     "name",
                     "evidence_count",
                     "why_it_matters",
-                    "recommended_doc_action",
                     "priority",
                 ],
                 "additionalProperties": False,
