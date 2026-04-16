@@ -58,7 +58,6 @@ Rules:
 - Do not repeat the same point across sections.
 """.strip()
 
-
 PLAUSIBLE_SCHEMA = {
     "type": "object",
     "properties": {
@@ -473,7 +472,6 @@ class ClaudePipeline:
             schema=FINAL_SCHEMA,
             max_tokens=8000,
         )
- 
             schema=FINAL_SCHEMA,
             max_tokens=8000,
         )
