@@ -10,6 +10,30 @@ from dotenv import load_dotenv
 load_dotenv()
 
 
+def _get_env_int(name: str, default: int) -> int:
+    raw = os.getenv(name)
+    if raw is None:
+        return default
+
+    raw = raw.strip()
+    if raw == "":
+        return default
+
+    return int(raw)
+
+
+def _get_env_str(name: str, default: str) -> str:
+    raw = os.getenv(name)
+    if raw is None:
+        return default
+
+    raw = raw.strip()
+    if raw == "":
+        return default
+
+    return raw
+
+
 @dataclass(frozen=True)
 class SiteConfig:
     name: str
@@ -24,7 +48,6 @@ class Settings:
     anthropic_api_key: str
     slack_webhook_url: str
     sites: list[SiteConfig]
-    report_base_url: str
     raw_output_dir: Path
     report_output_dir: Path
     site_output_dir: Path
@@ -47,18 +70,15 @@ class Settings:
             for item in parsed_sites
         ]
 
-        report_base_url = os.getenv("REPORT_BASE_URL", "").rstrip("/")
-
         return Settings(
             plausible_api_key=os.environ["PLAUSIBLE_API_KEY"],
             anthropic_api_key=os.environ["ANTHROPIC_API_KEY"],
             slack_webhook_url=os.environ["SLACK_WEBHOOK_URL"],
             sites=sites,
-            report_base_url=report_base_url,
-            raw_output_dir=Path(os.getenv("RAW_OUTPUT_DIR", "./artifacts/raw")),
-            report_output_dir=Path(os.getenv("REPORT_OUTPUT_DIR", "./artifacts/reports")),
-            site_output_dir=Path(os.getenv("SITE_OUTPUT_DIR", "./reports")),
-            claude_model=os.getenv("CLAUDE_MODEL", "claude-sonnet-4-6"),
-            claude_max_input_tokens=int(os.getenv("CLAUDE_MAX_INPUT_TOKENS", "120000")),
-            report_days=int(os.getenv("REPORT_DAYS", "7")),
+            raw_output_dir=Path(_get_env_str("RAW_OUTPUT_DIR", "./artifacts/raw")),
+            report_output_dir=Path(_get_env_str("REPORT_OUTPUT_DIR", "./artifacts/reports")),
+            site_output_dir=Path(_get_env_str("SITE_OUTPUT_DIR", "./reports")),
+            claude_model=_get_env_str("CLAUDE_MODEL", "claude-sonnet-4-6"),
+            claude_max_input_tokens=_get_env_int("CLAUDE_MAX_INPUT_TOKENS", 8000),
+            report_days=_get_env_int("REPORT_DAYS", 7),
         )
