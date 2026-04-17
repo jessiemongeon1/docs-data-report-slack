@@ -98,29 +98,25 @@
     }
   }
   {%- set seen_titles = [] -%}
-  {%- set top_priority_titles = [] -%}
-  {%- for item in site.final_analysis.executive_summary.top_priorities %}{% set _ = top_priority_titles.append(item | lower) %}{% endfor -%}
-  {%- set takeaway_titles = [] -%}
-  {%- for t in site.final_analysis.notable_takeaways %}{% set _ = takeaway_titles.append(t.title | lower) %}{% endfor -%}
   ,{
     "type": "section",
     "text": {
       "type": "mrkdwn",
-      "text": "*📝 Doc actions*\n{% for r in site.final_analysis.sprint_recommendations %}{% if r.category == 'documentation_action' and r.title | lower not in seen_titles %}{% set _ = seen_titles.append(r.title | lower) %}• *{{ r.title | replace('\n', ' ') }}*  `{{ r.priority }}`\n  {{ r.expected_impact | replace('\n', ' ') }}\n{% endif %}{% endfor %}"
+      "text": "*📝 Doc actions*\n{% for r in site.final_analysis.sprint_recommendations %}{% if r.category == 'documentation_action' and r.title | lower not in seen_titles %}{% set _ = seen_titles.append(r.title | lower) %}• *{{ r.title | replace('\n', ' ') }}*  `{{ r.priority }}`{% if r.fact_check_status == 'already_addressed' %} ⚠️ _already addressed_{% elif r.fact_check_status == 'partially_addressed' %} 🔵 _partial_{% endif %}\n  {{ r.expected_impact | replace('\n', ' ') }}{% if r.fact_check_note %}\n  _{{ r.fact_check_note | replace('\n', ' ') }}_{% endif %}\n{% endif %}{% endfor %}"
     }
   }
   ,{
     "type": "section",
     "text": {
       "type": "mrkdwn",
-      "text": "*🔧 Tooling actions*\n{% for r in site.final_analysis.sprint_recommendations %}{% if r.category == 'tooling_action' and r.title | lower not in seen_titles %}{% set _ = seen_titles.append(r.title | lower) %}• *{{ r.title | replace('\n', ' ') }}*  `{{ r.priority }}`\n  {{ r.expected_impact | replace('\n', ' ') }}\n{% endif %}{% endfor %}"
+      "text": "*🔧 Tooling actions*\n{% for r in site.final_analysis.sprint_recommendations %}{% if r.category == 'tooling_action' and r.title | lower not in seen_titles %}{% set _ = seen_titles.append(r.title | lower) %}• *{{ r.title | replace('\n', ' ') }}*  `{{ r.priority }}`{% if r.fact_check_status == 'already_addressed' %} ⚠️ _already addressed_{% elif r.fact_check_status == 'partially_addressed' %} 🔵 _partial_{% endif %}\n  {{ r.expected_impact | replace('\n', ' ') }}{% if r.fact_check_note %}\n  _{{ r.fact_check_note | replace('\n', ' ') }}_{% endif %}\n{% endif %}{% endfor %}"
     }
   }
   ,{
     "type": "section",
     "text": {
       "type": "mrkdwn",
-      "text": "*🧑‍💻 DX actions*\n{% for r in site.final_analysis.sprint_recommendations %}{% if r.category == 'developer_experience_action' and r.title | lower not in seen_titles %}{% set _ = seen_titles.append(r.title | lower) %}• *{{ r.title | replace('\n', ' ') }}*  `{{ r.priority }}`\n  {{ r.expected_impact | replace('\n', ' ') }}\n{% endif %}{% endfor %}"
+      "text": "*🧑‍💻 DX actions*\n{% for r in site.final_analysis.sprint_recommendations %}{% if r.category == 'developer_experience_action' and r.title | lower not in seen_titles %}{% set _ = seen_titles.append(r.title | lower) %}• *{{ r.title | replace('\n', ' ') }}*  `{{ r.priority }}`{% if r.fact_check_status == 'already_addressed' %} ⚠️ _already addressed_{% elif r.fact_check_status == 'partially_addressed' %} 🔵 _partial_{% endif %}\n  {{ r.expected_impact | replace('\n', ' ') }}{% if r.fact_check_note %}\n  _{{ r.fact_check_note | replace('\n', ' ') }}_{% endif %}\n{% endif %}{% endfor %}"
     }
   }
   {% if site.top_referrers %}

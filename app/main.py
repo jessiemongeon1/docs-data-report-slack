@@ -2,10 +2,12 @@ from __future__ import annotations
 
 import json
 import os
+import re
 from datetime import date, timedelta
 from pathlib import Path
 from typing import Any
 
+import requests
 from collections import Counter
 
 from app.claude_pipeline import ClaudePipeline
@@ -26,6 +28,84 @@ def compute_default_window(report_days: int) -> tuple[str, str]:
 
 def slugify_site_name(name: str) -> str:
     return name.replace(".", "-").replace("/", "-").lower()
+
+
+def fetch_site_search_pages(
+    site_domain: str,
+    recommendations: list[dict[str, Any]],
+    max_pages: int = 15,
+) -> dict[str, str]:
+    """Fetch pages from the live docs site relevant to the recommendations.
+
+    Uses the site's /llms.txt if available (a markdown summary of all pages),
+    then falls back to fetching individual pages based on keyword search.
+    """
+    pages: dict[str, str] = {}
+
+    # Try to fetch llms.txt first — it's a concise summary of all site content
+    # and is much cheaper than fetching individual pages.
+    llms_url = f"https://{site_domain}/llms.txt"
+    try:
+        resp = requests.get(llms_url, timeout=15, headers={"User-Agent": "DocsReportBot/1.0"})
+        if resp.status_code == 200 and len(resp.text) > 100:
+            # Truncate to ~80K chars to stay within token limits
+            pages[llms_url] = resp.text[:80000]
+            print(f"Fetched {llms_url} ({len(resp.text)} chars)")
+            return pages
+    except Exception as e:
+        print(f"Could not fetch {llms_url}: {e}")
+
+    # Fallback: extract keywords from recommendation titles and fetch
+    # likely relevant pages via sitemap or direct URL patterns.
+    keywords: list[str] = []
+    for rec in recommendations:
+        title = rec.get("title", "")
+        # Extract meaningful words (3+ chars, lowercase)
+        words = re.findall(r"[a-zA-Z]{3,}", title.lower())
+        keywords.extend(words)
+
+    # Dedupe and take top terms
+    seen: set[str] = set()
+    unique_keywords: list[str] = []
+    stop_words = {"the", "and", "for", "with", "from", "that", "this", "into", "about"}
+    for w in keywords:
+        if w not in seen and w not in stop_words:
+            seen.add(w)
+            unique_keywords.append(w)
+
+    # Try fetching key pages based on common docs site URL patterns
+    candidate_paths = set()
+    for kw in unique_keywords[:20]:
+        candidate_paths.add(f"/{kw}")
+    # Also add common top-level pages
+    for p in ["/", "/getting-started", "/develop", "/references"]:
+        candidate_paths.add(p)
+
+    fetched = 0
+    for path in list(candidate_paths):
+        if fetched >= max_pages:
+            break
+        url = f"https://{site_domain}{path}"
+        try:
+            resp = requests.get(
+                url, timeout=10,
+                headers={"User-Agent": "DocsReportBot/1.0"},
+                allow_redirects=True,
+            )
+            if resp.status_code == 200 and "text/html" in resp.headers.get("content-type", ""):
+                # Strip HTML tags to get text content
+                text = re.sub(r"<script[^>]*>.*?</script>", "", resp.text, flags=re.DOTALL)
+                text = re.sub(r"<style[^>]*>.*?</style>", "", text, flags=re.DOTALL)
+                text = re.sub(r"<[^>]+>", " ", text)
+                text = re.sub(r"\s+", " ", text).strip()
+                if len(text) > 200:
+                    pages[url] = text[:5000]
+                    fetched += 1
+        except Exception:
+            pass
+
+    print(f"Fetched {len(pages)} pages from {site_domain} for fact-checking")
+    return pages
 
 
 def build_report_url(repo: str, run_id: str, report_filename: str) -> str:
@@ -152,6 +232,21 @@ def process_site(
         plausible_analysis,
         kapa_analysis,
     )
+
+    # Fact-check recommendations against the live docs site.
+    recommendations = final_analysis.get("sprint_recommendations", [])
+    if recommendations:
+        print(f"Fact-checking {len(recommendations)} recommendations against {site.name}")
+        site_pages = fetch_site_search_pages(site.name, recommendations)
+        if site_pages:
+            final_analysis["sprint_recommendations"] = claude.fact_check_recommendations(
+                recommendations, site_pages,
+            )
+            checked_count = sum(
+                1 for r in final_analysis["sprint_recommendations"]
+                if r.get("fact_check_status")
+            )
+            print(f"Fact-checked {checked_count}/{len(recommendations)} recommendations")
 
     # Pre-group classified conversations by final theme name. Uses best-match
     # logic: exact match first, then substring containment, then assign to

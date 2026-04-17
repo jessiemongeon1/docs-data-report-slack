@@ -445,7 +445,7 @@ class ClaudePipeline:
             system_prompt=PLAUSIBLE_SYSTEM,
             payload={"source": "plausible", "raw": plausible_raw},
             schema=PLAUSIBLE_SCHEMA,
-            max_tokens=2500,
+            max_tokens=5000,
         )
 
     def analyze_kapa_raw(self, kapa_raw: dict[str, Any]) -> dict[str, Any]:
@@ -550,3 +550,88 @@ class ClaudePipeline:
             schema=FINAL_SCHEMA,
             max_tokens=8000,
         )
+
+    def fact_check_recommendations(
+        self,
+        recommendations: list[dict[str, Any]],
+        site_pages: dict[str, str],
+    ) -> list[dict[str, Any]]:
+        """Validate recommendations against live docs content.
+
+        Args:
+            recommendations: sprint_recommendations from the final synthesis.
+            site_pages: mapping of URL → page text fetched from the live site.
+
+        Returns:
+            The same recommendations list with added ``fact_check_status``
+            and ``fact_check_note`` fields.
+        """
+        if not recommendations or not site_pages:
+            return recommendations
+
+        schema = {
+            "type": "object",
+            "properties": {
+                "checked": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "index": {"type": "integer"},
+                            "status": {
+                                "type": "string",
+                                "enum": [
+                                    "confirmed",
+                                    "already_addressed",
+                                    "partially_addressed",
+                                ],
+                            },
+                            "note": {"type": "string"},
+                        },
+                        "required": ["index", "status", "note"],
+                        "additionalProperties": False,
+                    },
+                },
+            },
+            "required": ["checked"],
+            "additionalProperties": False,
+        }
+
+        system = (
+            "You fact-check documentation improvement recommendations against "
+            "live documentation pages.\n\n"
+            "For each recommendation (identified by index), determine whether:\n"
+            "- confirmed: the issue still exists and the recommendation is relevant.\n"
+            "- already_addressed: the docs already cover this topic adequately.\n"
+            "- partially_addressed: some content exists but the recommendation "
+            "  is still partially relevant.\n\n"
+            "Provide a concise note (1 sentence) explaining your verdict, "
+            "citing a specific page URL when possible."
+        )
+
+        result = self._structured_json(
+            system_prompt=system,
+            payload={
+                "recommendations": [
+                    {"index": i, "title": r["title"], "scope": r.get("scope", "")}
+                    for i, r in enumerate(recommendations)
+                ],
+                "site_pages": site_pages,
+            },
+            schema=schema,
+            max_tokens=2000,
+        )
+
+        status_map: dict[int, dict[str, str]] = {}
+        for item in result.get("checked", []):
+            status_map[item["index"]] = {
+                "status": item["status"],
+                "note": item["note"],
+            }
+
+        for i, rec in enumerate(recommendations):
+            check = status_map.get(i, {"status": "confirmed", "note": ""})
+            rec["fact_check_status"] = check["status"]
+            rec["fact_check_note"] = check["note"]
+
+        return recommendations

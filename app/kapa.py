@@ -117,13 +117,13 @@ class KapaClient:
                         or item.get("session_id")
                     ),
                     "user_id": (
-                        item.get("user_id")
+                        item.get("end_user_id")
+                        or item.get("user_id")
                         or item.get("user")
                         or item.get("anonymous_user_id")
                         or item.get("user_identifier")
                         or item.get("external_user_id")
                         or item.get("fingerprint")
-                        or item.get("ip_address")
                     ),
                 }
             )
