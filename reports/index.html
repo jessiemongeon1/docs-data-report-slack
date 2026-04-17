@@ -1,29 +1,280 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="utf-8">
-  <title>Weekly docs analytics index</title>
-  <style>
-    body { font-family: Arial, sans-serif; margin: 40px; color: #1f2937; }
-    .card { border: 1px solid #e5e7eb; border-radius: 8px; padding: 16px; margin: 16px 0; }
-    a { color: #2563eb; }
-  </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Weekly docs analytics index</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=JetBrains+Mono:wght@400;500&family=Fraunces:opsz,wght@9..144,300;9..144,500;9..144,700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    /* Backgrounds */
+    --bg: #0c0f14;
+    --surface: #141820;
+    --surface-2: #1a1f2a;
+    --surface-3: #222836;
+
+    /* Borders */
+    --border: #2a3040;
+    --border-light: #353d50;
+
+    /* Text */
+    --text: #e2e6ef;
+    --text-muted: #8891a5;
+    --text-dim: #5c6478;
+
+    /* Accent */
+    --accent: #4da2ff;
+    --accent-dim: rgba(77, 162, 255, 0.12);
+    --accent-glow: rgba(77, 162, 255, 0.06);
+
+    /* Semantic */
+    --green: #3dd68c;
+    --green-dim: rgba(61, 214, 140, 0.12);
+    --red: #f0605d;
+    --red-dim: rgba(240, 96, 93, 0.12);
+    --yellow: #f0c050;
+    --yellow-dim: rgba(240, 192, 80, 0.12);
+    --purple: #9d7aff;
+    --purple-dim: rgba(157, 122, 255, 0.1);
+
+    /* Radii */
+    --radius: 10px;
+    --radius-sm: 6px;
+
+    /* Fonts */
+    --font: 'DM Sans', -apple-system, sans-serif;
+    --font-display: 'Fraunces', Georgia, serif;
+    --font-mono: 'JetBrains Mono', monospace;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: var(--font);
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* Hero */
+  .hero {
+    padding: 80px 40px 60px;
+    text-align: center;
+    position: relative;
+    overflow: hidden;
+    border-bottom: 1px solid var(--border);
+  }
+  .hero::before {
+    content: '';
+    position: absolute;
+    top: -200px; left: 50%; transform: translateX(-50%);
+    width: 800px; height: 800px;
+    background: radial-gradient(circle, rgba(77,162,255,0.08) 0%, transparent 70%);
+    pointer-events: none;
+  }
+  .hero-label {
+    display: inline-block;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--accent);
+    background: var(--accent-dim);
+    padding: 6px 16px;
+    border-radius: 20px;
+    margin-bottom: 24px;
+  }
+  .hero h1 {
+    font-family: var(--font-display);
+    font-size: clamp(32px, 5vw, 56px);
+    font-weight: 700;
+    letter-spacing: -1px;
+    line-height: 1.15;
+    margin-bottom: 12px;
+  }
+  .hero h1 span { color: var(--accent); }
+  .hero .subtitle {
+    font-size: 17px;
+    color: var(--text-muted);
+    font-weight: 400;
+    font-family: var(--font-mono);
+  }
+
+  /* Sticky TOC */
+  .toc {
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    background: rgba(12, 15, 20, 0.85);
+    backdrop-filter: blur(16px);
+    border-bottom: 1px solid var(--border);
+    padding: 0 24px;
+  }
+  .toc-inner {
+    max-width: 1200px;
+    margin: 0 auto;
+    display: flex;
+    gap: 4px;
+    overflow-x: auto;
+    scrollbar-width: none;
+    padding: 10px 0;
+  }
+  .toc-inner::-webkit-scrollbar { display: none; }
+  .toc a {
+    font-size: 12.5px;
+    font-weight: 500;
+    color: var(--text-muted);
+    text-decoration: none;
+    padding: 6px 14px;
+    border-radius: 6px;
+    white-space: nowrap;
+    transition: all 0.2s;
+  }
+  .toc a:hover { color: var(--text); background: var(--surface-2); }
+
+  /* Container + sections */
+  .container { max-width: 1200px; margin: 0 auto; padding: 0 24px; }
+
+  section { padding: 56px 0; }
+  section + section { border-top: 1px solid var(--border); }
+
+  .section-header { margin-bottom: 36px; }
+  .section-label {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin-bottom: 8px;
+  }
+  .section-title {
+    font-family: var(--font-display);
+    font-size: clamp(24px, 3.5vw, 36px);
+    font-weight: 500;
+    letter-spacing: -0.5px;
+  }
+  .section-desc {
+    color: var(--text-muted);
+    margin-top: 8px;
+    font-size: 15px;
+    max-width: 600px;
+  }
+
+  /* Site report cards (takeaway pattern with an action link) */
+  .report-list { display: flex; flex-direction: column; gap: 16px; }
+  .report-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 28px;
+    border-left: 3px solid var(--accent);
+    transition: border-color 0.2s;
+  }
+  .report-card:hover { border-color: var(--border-light); border-left-color: var(--accent); }
+  .report-card .site {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--accent);
+    background: var(--accent-dim);
+    padding: 3px 10px;
+    border-radius: 4px;
+    display: inline-block;
+    margin-bottom: 14px;
+  }
+  .report-card h3 {
+    font-family: var(--font-display);
+    font-size: 22px;
+    font-weight: 500;
+    letter-spacing: -0.3px;
+    margin-bottom: 12px;
+  }
+  .report-card p {
+    font-size: 14px;
+    color: var(--text-muted);
+    line-height: 1.65;
+    margin-bottom: 18px;
+  }
+  .report-card a.open {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-family: var(--font-mono);
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--accent);
+    text-decoration: none;
+    padding: 8px 14px;
+    border: 1px solid var(--accent-dim);
+    border-radius: var(--radius-sm);
+    background: var(--accent-dim);
+    transition: all 0.2s;
+  }
+  .report-card a.open:hover {
+    background: var(--accent);
+    color: var(--bg);
+    border-color: var(--accent);
+  }
+
+  /* Footer */
+  footer {
+    text-align: center;
+    padding: 48px 24px;
+    border-top: 1px solid var(--border);
+    color: var(--text-dim);
+    font-size: 12px;
+    font-family: var(--font-mono);
+  }
+
+  /* Responsive */
+  @media (max-width: 640px) {
+    .hero { padding: 48px 20px 40px; }
+    section { padding: 40px 0; }
+    .report-card { padding: 22px; }
+  }
+</style>
 </head>
 <body>
-  <h1>Weekly docs analytics index</h1>
-  <p>2026-04-10 to 2026-04-16 · run 20260417T164636Z</p>
-  
-  <div class="card">
-    <h2>docs.sui.io</h2>
-    <p>Sui docs saw a strong engagement week with session depth and duration outperforming the 30-day baseline, driven by a surge in onboarding and gRPC migration activity. The dominant developer pain points are the JSON-RPC to gRPC/GraphQL migration and Move smart contract patterns, both of which are heavily reflected in top page traffic and chatbot question volume.</p>
-    <p><a href="docs-sui-io.html">Open full report</a></p>
+
+<header class="hero">
+  <div class="hero-label">Weekly Report</div>
+  <h1>Docs analytics <span>index</span></h1>
+  <p class="subtitle">2026-04-10 → 2026-04-16 · run 20260417T164636Z</p>
+</header>
+
+<nav class="toc">
+  <div class="toc-inner">
+    <a href="#docs-sui-io">docs.sui.io</a>
+    <a href="#docs-wal-app">docs.wal.app</a>
   </div>
-  
-  <div class="card">
-    <h2>docs.wal.app</h2>
-    <p>Walrus docs saw strong traffic growth this week, with blob storage operations and WAL tokenomics dominating developer questions across both the chatbot and high-traffic documentation pages. Duplicate URL canonicalization, missing TypeScript SDK examples, and CLI setup friction are the top addressable gaps.</p>
-    <p><a href="docs-wal-app.html">Open full report</a></p>
-  </div>
-  
+</nav>
+
+<main class="container">
+  <section id="reports">
+    <div class="section-header">
+      <div class="section-label">Site Reports</div>
+      <h2 class="section-title">This week's findings</h2>
+      <p class="section-desc">Per-site synthesis combining Plausible traffic data and Kapa chatbot activity. Open a card for the full breakdown.</p>
+    </div>
+
+    <div class="report-list">
+      <div class="report-card" id="docs-sui-io">
+        <div class="site">docs.sui.io</div>
+        <a class="open" href="latest/docs-sui-io.html">Open full report →</a>
+      </div>
+
+      <div class="report-card" id="docs-wal-app">
+        <div class="site">docs.wal.app</div>
+        <a class="open" href="latest/docs-wal-app.html">Open full report →</a>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer>
+  Weekly Plausible + Kapa + Claude synthesis · Generated 2026-04-17 · docs.sui.io, docs.wal.app
+</footer>
+
 </body>
 </html>
