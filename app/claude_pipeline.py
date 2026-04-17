@@ -22,15 +22,15 @@ This chunk is only part of the full dataset.
 Do not assume it represents the whole reporting period.
 
 For each theme you identify:
-- Count the exact number of conversations that support it (evidence_count must reflect actual Q&A items in the chunk).
+- Count the exact number of questions that support it (evidence_count must reflect actual Q&A items in the chunk).
 - Prefer recurring issues over one-off issues.
 - Return at most 5 themes. Merge minor ones into the closest major theme rather than listing them separately.
 - chunk_summary: 1 sentence only.
 - insight and recommended_action: 1 sentence each, under 20 words.
 
-You MUST also return a classified_conversations array that maps every conversation in the chunk to one of your identified theme names. For each conversation include:
+You MUST also return a classified_questions array that maps every question in the chunk to one of your identified theme names. For each question include:
 - theme: the exact name of one of your themes (must match a name in the themes array)
-- index: the zero-based index of the conversation in the input question_answers array
+- index: the zero-based index of the question in the input question_answers array
 """.strip()
 
 KAPA_SYNTHESIS_SYSTEM = """
@@ -38,7 +38,7 @@ You synthesize multiple chunk-level analyses of raw Kapa question/answer data in
 
 Rules:
 - Sum evidence_count values across chunks when merging the same theme.
-- Report the exact total conversation count (sum of all evidence_counts across all themes).
+- Report the exact total question count (sum of all evidence_counts across all themes).
 - Merge repeated themes; do not duplicate them.
 - Prefer recurring issues over one-off issues.
 - Return at most 7 themes total.
@@ -65,7 +65,7 @@ Output limits — strictly enforce these:
 - sprint_recommendations: at most 7 items total. scope, why_now, expected_impact: 1 sentence each, under 20 words.
 
 Content rules:
-- State the exact total number of Kapa conversations and distinct themes in the executive summary.
+- Do NOT include raw counts of questions or themes in the executive_summary.summary text — those are shown separately as structured fields. The summary should focus on the key findings and actionable insights.
 - In chatbot_referrals, include every referral source identifiable as a chatbot or AI agent.
 - For notable_takeaways, evidence must be a raw number or metric — never "several", "many", or vague phrases.
 - For sprint_recommendations, category must be exactly one of:
@@ -154,7 +154,7 @@ KAPA_CHUNK_SCHEMA = {
                 "additionalProperties": False,
             },
         },
-        "classified_conversations": {
+        "classified_questions": {
             "type": "array",
             "items": {
                 "type": "object",
@@ -167,7 +167,7 @@ KAPA_CHUNK_SCHEMA = {
             },
         },
     },
-    "required": ["chunk_summary", "themes", "classified_conversations"],
+    "required": ["chunk_summary", "themes", "classified_questions"],
     "additionalProperties": False,
 }
 
@@ -175,7 +175,7 @@ KAPA_SYNTHESIS_SCHEMA = {
     "type": "object",
     "properties": {
         "summary": {"type": "string"},
-        "total_conversations": {"type": "integer"},
+        "total_questions": {"type": "integer"},
         "total_themes": {"type": "integer"},
         "themes": {
             "type": "array",
@@ -192,7 +192,7 @@ KAPA_SYNTHESIS_SCHEMA = {
             },
         },
     },
-    "required": ["summary", "total_conversations", "total_themes", "themes"],
+    "required": ["summary", "total_questions", "total_themes", "themes"],
     "additionalProperties": False,
 }
 
@@ -203,12 +203,12 @@ FINAL_SCHEMA = {
             "type": "object",
             "properties": {
                 "summary": {"type": "string"},
-                "total_kapa_conversations": {"type": "integer"},
+                "total_kapa_questions": {"type": "integer"},
                 "total_themes_identified": {"type": "integer"},
             },
             "required": [
                 "summary",
-                "total_kapa_conversations",
+                "total_kapa_questions",
                 "total_themes_identified",
             ],
             "additionalProperties": False,
@@ -507,7 +507,7 @@ class ClaudePipeline:
 
             # Resolve indices back to the original QA items in this chunk.
             chunk_items = chunk.get("raw", {}).get("question_answers", [])
-            for cc in result.get("classified_conversations", []):
+            for cc in result.get("classified_questions", []):
                 idx = cc.get("index", -1)
                 if 0 <= idx < len(chunk_items):
                     item = chunk_items[idx]
@@ -529,9 +529,9 @@ class ClaudePipeline:
             max_tokens=8000,
         )
 
-        # Attach the classified conversations so downstream consumers
-        # (e.g. the HTML report) can show full conversation detail per theme.
-        synthesis["classified_conversations"] = all_classified
+        # Attach the classified questions so downstream consumers
+        # (e.g. the HTML report) can show full question detail per theme.
+        synthesis["classified_questions"] = all_classified
         return synthesis
 
     def synthesize(

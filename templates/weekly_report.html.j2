@@ -167,8 +167,8 @@ section + section { border-top: 1px solid var(--border); }
     </div>
     <div class="stat-grid">
       <div class="stat-card">
-        <div class="label">Kapa Conversations</div>
-        <div class="value">{{ final_analysis.executive_summary.total_kapa_conversations }}</div>
+        <div class="label">Kapa Questions</div>
+        <div class="value">{{ final_analysis.executive_summary.total_kapa_questions }}</div>
       </div>
       <div class="stat-card">
         <div class="label">Themes Identified</div>
@@ -371,36 +371,28 @@ section + section { border-top: 1px solid var(--border); }
       <div class="thread-card">
         <div class="thread-meta">
           <span class="thread-num">#{{ loop.index }}</span>
-          <span class="thread-count">{{ t.evidence_count }} conversations</span>
+          <span class="thread-count">{{ t.evidence_count }} questions</span>
           <span class="tag">{{ t.priority }} priority</span>
         </div>
         <h4>{{ t.name }}</h4>
         <p class="summary">{{ t.why_it_matters }}</p>
 
-        {# Show classified conversations for this theme (pre-grouped in Python) #}
-        {% set convos = theme_conversations.get(t.name, []) if theme_conversations else [] %}
-        {% if convos %}
+        {# Show classified questions for this theme (pre-grouped in Python) #}
+        {% set questions = theme_conversations.get(t.name, []) if theme_conversations else [] %}
+        {% if questions %}
         <details style="margin-top:12px;">
           <summary style="cursor:pointer;font-size:12px;color:var(--text-muted);font-family:var(--font-mono);letter-spacing:0.5px;">
-            Show {{ convos | length }} conversation{{ 's' if convos | length != 1 else '' }}
+            Show {{ questions | length }} question{{ 's' if questions | length != 1 else '' }}
           </summary>
           <div style="margin-top:8px;display:flex;flex-direction:column;gap:8px;">
-            {% for c in convos %}
+            {% for q in questions %}
             <div style="padding:10px 14px;border:1px solid var(--border);border-radius:6px;font-size:13px;background:var(--surface);">
-              <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">
-                <span style="font-weight:600;color:var(--text);">Q: {{ c.question }}</span>
-                {% if c.thread_question_count and c.thread_question_count > 1 %}
-                <span style="font-size:10px;padding:2px 6px;border-radius:4px;background:var(--accent);color:var(--accent-foreground, var(--text-muted));white-space:nowrap;">{{ c.thread_question_count }}-part thread</span>
-                {% endif %}
+              <div style="font-weight:600;color:var(--text);margin-bottom:4px;">
+                Q: {{ q.question }}
               </div>
               <div style="color:var(--text-muted);font-size:12px;">
-                A: {{ c.answer_snippet }}{% if c.answer_snippet | length >= 195 %}…{% endif %}
+                A: {{ q.answer_snippet }}{% if q.answer_snippet | length >= 195 %}…{% endif %}
               </div>
-              {% if c.thread_id %}
-              <div style="color:var(--text-dim);font-size:11px;margin-top:4px;font-family:var(--font-mono);">
-                thread: {{ c.thread_id }}
-              </div>
-              {% endif %}
             </div>
             {% endfor %}
           </div>

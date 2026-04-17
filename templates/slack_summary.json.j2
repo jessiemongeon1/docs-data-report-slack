@@ -57,7 +57,7 @@
     "type": "section",
     "text": {
       "type": "mrkdwn",
-      "text": "*🧩 Kapa themes*\n{% for t in site.final_analysis.themes %}• *{{ t.name | replace('\n', ' ') }}* — `{{ t.evidence_count }} convos` `{{ t.priority }}`\n{% endfor %}"
+      "text": "*🧩 Kapa themes*\n{% for t in site.final_analysis.themes %}• *{{ t.name | replace('\n', ' ') }}* — `{{ t.evidence_count }} questions` `{{ t.priority }}`\n{% endfor %}"
     }
   }
   {%- set seen_titles = [] -%}

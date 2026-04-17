@@ -232,7 +232,7 @@ def process_site(
     # Pre-group classified conversations by final theme name. Uses best-match
     # logic: exact match first, then substring containment, then assign to
     # closest theme. Unmatched conversations go into the most similar theme.
-    classified = kapa_analysis.get("classified_conversations", [])
+    classified = kapa_analysis.get("classified_questions", [])
     final_themes = [t["name"] for t in final_analysis.get("themes", [])]
     theme_conversations: dict[str, list[dict[str, Any]]] = {t: [] for t in final_themes}
 
