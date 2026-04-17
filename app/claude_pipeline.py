@@ -504,7 +504,7 @@ class ClaudePipeline:
                 system_prompt=KAPA_CHUNK_SYSTEM,
                 payload=chunk,
                 schema=KAPA_CHUNK_SCHEMA,
-                max_tokens=6000,
+                max_tokens=16000,
             )
             chunk_analyses.append(result)
             all_classified.extend(result.get("classified_conversations", []))
