@@ -6,6 +6,8 @@ from datetime import date, timedelta
 from pathlib import Path
 from typing import Any
 
+from collections import Counter
+
 from app.claude_pipeline import ClaudePipeline
 from app.config import Settings, SiteConfig
 from app.kapa import KapaClient
@@ -26,8 +28,71 @@ def slugify_site_name(name: str) -> str:
     return name.replace(".", "-").replace("/", "-").lower()
 
 
-def build_report_url(repo: str, branch: str, path: str) -> str:
-    return f"https://github.com/{repo}/blob/{branch}/{path}"
+def build_report_url(repo: str, run_id: str, report_filename: str) -> str:
+    # Use GitHub Pages URL if GITHUB_PAGES_URL is set or derivable from the repo name.
+    pages_base = os.environ.get("GITHUB_PAGES_URL", "").rstrip("/")
+    if not pages_base:
+        # Default convention: https://<owner>.github.io/<repo>/
+        parts = repo.split("/", 1)
+        if len(parts) == 2:
+            owner, repo_name = parts
+            pages_base = f"https://{owner}.github.io/{repo_name}"
+    return f"{pages_base}/{run_id}/{report_filename}"
+
+
+def compute_kapa_user_stats(kapa_raw: dict[str, Any]) -> dict[str, Any]:
+    """Compute returning-user and conversation stats from Kapa QA items."""
+    qa_items = kapa_raw.get("question_answers", [])
+
+    # Map user_id → set of conversation_ids
+    user_conversations: dict[str, set[str]] = {}
+    # Also count conversations with no user_id
+    anonymous_conversations: set[str] = set()
+
+    for item in qa_items:
+        user_id = item.get("user_id")
+        conv_id = item.get("conversation_id") or item.get("thread_id") or "unknown"
+
+        if user_id:
+            user_conversations.setdefault(str(user_id), set()).add(str(conv_id))
+        else:
+            anonymous_conversations.add(str(conv_id))
+
+    total_users = len(user_conversations)
+    returning_users = {
+        uid: convs for uid, convs in user_conversations.items() if len(convs) > 1
+    }
+    total_conversations = len(
+        set().union(*user_conversations.values()) | anonymous_conversations
+        if user_conversations
+        else anonymous_conversations
+    )
+
+    # Build a sorted list of returning users by conversation count (desc)
+    returning_user_list = sorted(
+        [
+            {"user_id": uid, "conversations": len(convs)}
+            for uid, convs in returning_users.items()
+        ],
+        key=lambda x: x["conversations"],
+        reverse=True,
+    )
+
+    # Conversation-count distribution for all identified users
+    convo_counts = Counter(len(convs) for convs in user_conversations.values())
+    distribution = [
+        {"conversations": k, "users": v}
+        for k, v in sorted(convo_counts.items())
+    ]
+
+    return {
+        "total_identified_users": total_users,
+        "total_conversations": total_conversations,
+        "anonymous_conversations": len(anonymous_conversations),
+        "returning_user_count": len(returning_users),
+        "returning_users": returning_user_list[:20],  # top 20 by volume
+        "conversation_distribution": distribution,
+    }
 
 
 def process_site(
@@ -53,6 +118,7 @@ def process_site(
 
     plausible_raw = plausible.fetch_weekly_bundle(start_date, end_date)
     kapa_raw = kapa.fetch_weekly_bundle(start_date, end_date)
+    kapa_user_stats = compute_kapa_user_stats(kapa_raw)
 
     site_slug = slugify_site_name(site.name)
 
@@ -80,13 +146,8 @@ def process_site(
     report_path = reports_root / report_filename
 
     repo = os.environ.get("GITHUB_REPOSITORY", "your-org/your-repo")
-    branch = os.environ.get("GITHUB_REF_NAME", "main")
 
-    report_url = build_report_url(
-        repo,
-        branch,
-        f"reports/{run_id}/{report_filename}",
-    )
+    report_url = build_report_url(repo, run_id, report_filename)
 
     html = render_html(
         Path("templates"),
@@ -98,6 +159,7 @@ def process_site(
             "end_date": end_date,
             "plausible_raw": plausible_raw,
             "kapa_raw": kapa_raw,
+            "kapa_user_stats": kapa_user_stats,
             "plausible_analysis": plausible_analysis,
             "kapa_analysis": kapa_analysis,
             "final_analysis": final_analysis,
@@ -177,6 +239,7 @@ def process_site(
         "slack_webhook_urls": list(site.slack_webhook_urls),
         "final_analysis": final_analysis,
         "top_referrers": top_referrers,
+        "kapa_user_stats": kapa_user_stats,
     }
 
 

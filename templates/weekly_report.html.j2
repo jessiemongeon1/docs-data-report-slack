@@ -152,6 +152,7 @@ section + section { border-top: 1px solid var(--border); }
     <a href="#correlations">Page↔Theme</a>
     <a href="#takeaways">Takeaways</a>
     <a href="#themes">Kapa Themes</a>
+    <a href="#kapa-users">User Engagement</a>
     <a href="#sprint">Sprint</a>
   </div>
 </nav>
@@ -375,10 +376,111 @@ section + section { border-top: 1px solid var(--border); }
         </div>
         <h4>{{ t.name }}</h4>
         <p class="summary">{{ t.why_it_matters }}</p>
+
+        {# Show classified conversations for this theme #}
+        {% if kapa_analysis.classified_conversations %}
+          {# Collect conversations matching this theme name (case-insensitive, fuzzy) #}
+          {% set theme_lower = t.name | lower %}
+          {% set convos = [] %}
+          {% for c in kapa_analysis.classified_conversations %}
+            {% if c.theme | lower == theme_lower or theme_lower in c.theme | lower or c.theme | lower in theme_lower %}
+              {% set _ = convos.append(c) %}
+            {% endif %}
+          {% endfor %}
+
+          {% if convos %}
+          <details style="margin-top:12px;">
+            <summary style="cursor:pointer;font-size:12px;color:var(--text-muted);font-family:var(--font-mono);letter-spacing:0.5px;">
+              Show {{ convos | length }} conversation{{ 's' if convos | length != 1 else '' }}
+            </summary>
+            <div style="margin-top:8px;display:flex;flex-direction:column;gap:8px;">
+              {% for c in convos %}
+              <div style="padding:10px 14px;border:1px solid var(--border);border-radius:6px;font-size:13px;background:var(--surface);">
+                <div style="font-weight:600;color:var(--text);margin-bottom:4px;">
+                  Q: {{ c.question }}
+                </div>
+                <div style="color:var(--text-muted);font-size:12px;">
+                  A: {{ c.answer_snippet }}{% if c.answer_snippet | length >= 195 %}…{% endif %}
+                </div>
+                {% if c.thread_id %}
+                <div style="color:var(--text-dim);font-size:11px;margin-top:4px;font-family:var(--font-mono);">
+                  thread: {{ c.thread_id }}
+                </div>
+                {% endif %}
+              </div>
+              {% endfor %}
+            </div>
+          </details>
+          {% endif %}
+        {% endif %}
       </div>
       {% endfor %}
     </div>
   </section>
+
+  {# ── Kapa User Engagement ── #}
+  {% if kapa_user_stats and kapa_user_stats.total_identified_users > 0 %}
+  <section id="kapa-users">
+    <div class="section-header">
+      <div class="section-label">Kapa</div>
+      <h2 class="section-title">User engagement</h2>
+      <p class="section-desc">Returning users and conversation volume from identified Kapa users this period.</p>
+    </div>
+    <div style="display:flex;gap:24px;margin-bottom:24px;">
+      <div class="metric-card" style="flex:1;text-align:center;padding:16px;border:1px solid var(--border);border-radius:8px;">
+        <div style="font-size:28px;font-weight:700;color:var(--text);">{{ kapa_user_stats.total_identified_users }}</div>
+        <div style="font-size:12px;color:var(--text-muted);text-transform:uppercase;letter-spacing:1px;">Identified users</div>
+      </div>
+      <div class="metric-card" style="flex:1;text-align:center;padding:16px;border:1px solid var(--border);border-radius:8px;">
+        <div style="font-size:28px;font-weight:700;color:var(--text);">{{ kapa_user_stats.returning_user_count }}</div>
+        <div style="font-size:12px;color:var(--text-muted);text-transform:uppercase;letter-spacing:1px;">Returning users (2+ convos)</div>
+      </div>
+      <div class="metric-card" style="flex:1;text-align:center;padding:16px;border:1px solid var(--border);border-radius:8px;">
+        <div style="font-size:28px;font-weight:700;color:var(--text);">{{ kapa_user_stats.total_conversations }}</div>
+        <div style="font-size:12px;color:var(--text-muted);text-transform:uppercase;letter-spacing:1px;">Total conversations</div>
+      </div>
+    </div>
+    {% if kapa_user_stats.returning_users %}
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>User ID</th>
+          <th class="num">Conversations</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for u in kapa_user_stats.returning_users %}
+        <tr>
+          <td><span class="page-path">{{ u.user_id }}</span></td>
+          <td class="num">{{ u.conversations }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% endif %}
+    {% if kapa_user_stats.conversation_distribution %}
+    <div style="margin-top:16px;">
+      <h4 style="font-size:13px;color:var(--text-muted);margin-bottom:8px;">Conversation distribution</h4>
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th class="num">Conversations per user</th>
+            <th class="num">Number of users</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for d in kapa_user_stats.conversation_distribution %}
+          <tr>
+            <td class="num">{{ d.conversations }}</td>
+            <td class="num">{{ d.users }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% endif %}
+  </section>
+  {% endif %}
 
   {# ── Sprint Recommendations ── #}
   <section id="sprint">

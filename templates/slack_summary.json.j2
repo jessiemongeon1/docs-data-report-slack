@@ -31,6 +31,30 @@
       }
     ]
   }
+  {% if site.kapa_user_stats %}
+  ,{
+    "type": "section",
+    "fields": [
+      {
+        "type": "mrkdwn",
+        "text": "*Identified users*\n`{{ site.kapa_user_stats.total_identified_users }}`"
+      },
+      {
+        "type": "mrkdwn",
+        "text": "*Returning users*\n`{{ site.kapa_user_stats.returning_user_count }}`"
+      }
+    ]
+  }
+  {% if site.kapa_user_stats.returning_users %}
+  ,{
+    "type": "section",
+    "text": {
+      "type": "mrkdwn",
+      "text": "*🔄 Top returning users*\n{% for u in site.kapa_user_stats.returning_users %}• `{{ u.user_id }}` — {{ u.conversations }} conversations\n{% endfor %}"
+    }
+  }
+  {% endif %}
+  {% endif %}
   ,{
     "type": "section",
     "text": {

@@ -107,6 +107,15 @@ class KapaClient:
                     "answer": answer,
                     "timestamp": item.get("created_at") or item.get("timestamp"),
                     "thread_id": item.get("thread_id"),
+                    "conversation_id": (
+                        item.get("conversation_id")
+                        or item.get("thread_id")
+                    ),
+                    "user_id": (
+                        item.get("user_id")
+                        or item.get("user")
+                        or item.get("anonymous_user_id")
+                    ),
                 }
             )
 
@@ -115,14 +124,14 @@ class KapaClient:
     def fetch_weekly_bundle(self, start_date: str, end_date: str) -> dict[str, Any]:
         path = f"/query/v1/projects/{self.project_id}/question-answers/"
         page_size = 100
-        page = 1
-        max_pages = 100  # safety cap: 10,000 items
+        max_pages = 20  # hard cap: 2,000 items max
+        max_items = 2000
         all_items: list[dict[str, Any]] = []
-        # Track the raw payload from the first page so we can keep top-level
-        # metadata (e.g. count) for downstream debugging.
-        first_payload: dict[str, Any] | None = None
+        # Dedup against repeated payloads in case Kapa ignores pagination params
+        # (we'd otherwise loop returning the same first page over and over).
+        seen_keys: set[str] = set()
 
-        while page <= max_pages:
+        for page in range(1, max_pages + 1):
             raw = self.get(
                 path,
                 params={
@@ -132,30 +141,46 @@ class KapaClient:
                     "page_size": page_size,
                 },
             )
-            if first_payload is None:
-                first_payload = raw
 
             page_items = self._extract_qa_items(raw)
             if not page_items:
-                # Empty page means we've consumed all available results.
                 break
-            all_items.extend(page_items)
 
-            # Stop if the API signals there are no more pages, or if the page
-            # came back smaller than requested (last page).
-            if isinstance(raw, dict):
-                if raw.get("next") in (None, "", False):
-                    # Some Kapa endpoints expose a `next` cursor/url; if it's
-                    # explicitly null treat it as the final page. If the field
-                    # is missing entirely, fall through to the size check.
-                    if "next" in raw:
-                        break
+            new_items: list[dict[str, Any]] = []
+            for item in page_items:
+                key = (
+                    str(item.get("thread_id"))
+                    if item.get("thread_id")
+                    else f"{item.get('question', '')[:200]}|{item.get('timestamp')}"
+                )
+                if key in seen_keys:
+                    continue
+                seen_keys.add(key)
+                new_items.append(item)
+
+            # If everything on this page was already seen, the API isn't
+            # paginating - stop instead of looping forever.
+            if not new_items:
+                print(
+                    f"Kapa page {page} returned only duplicate items; "
+                    "stopping pagination."
+                )
+                break
+
+            all_items.extend(new_items)
+
+            if len(all_items) >= max_items:
+                print(f"Kapa hit max_items cap of {max_items}; stopping.")
+                all_items = all_items[:max_items]
+                break
+
+            # Stop if the API explicitly signals no more pages.
+            if isinstance(raw, dict) and "next" in raw and not raw.get("next"):
+                break
             if len(page_items) < page_size:
                 break
 
-            page += 1
-
-        print(f"Kapa fetched {len(all_items)} QA items across {page} page(s)")
+        print(f"Kapa fetched {len(all_items)} unique QA items")
 
         return {
             "project_id": self.project_id,

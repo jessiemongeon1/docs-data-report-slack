@@ -26,6 +26,12 @@ For each theme you identify:
 - Return at most 5 themes. Merge minor ones into the closest major theme rather than listing them separately.
 - chunk_summary: 1 sentence only.
 - insight and recommended_action: 1 sentence each, under 20 words.
+
+You MUST also return a classified_conversations array that maps every conversation in the chunk to one of your identified theme names. For each conversation include:
+- theme: the exact name of one of your themes (must match a name in the themes array)
+- question: the user's question (first 300 characters)
+- answer_snippet: the first 200 characters of the answer
+- thread_id: the thread_id if available, otherwise null
 """.strip()
 
 KAPA_SYNTHESIS_SYSTEM = """
@@ -149,8 +155,22 @@ KAPA_CHUNK_SCHEMA = {
                 "additionalProperties": False,
             },
         },
+        "classified_conversations": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "theme": {"type": "string"},
+                    "question": {"type": "string"},
+                    "answer_snippet": {"type": "string"},
+                    "thread_id": {"type": ["string", "null"]},
+                },
+                "required": ["theme", "question", "answer_snippet"],
+                "additionalProperties": False,
+            },
+        },
     },
-    "required": ["chunk_summary", "themes"],
+    "required": ["chunk_summary", "themes", "classified_conversations"],
     "additionalProperties": False,
 }
 
@@ -445,7 +465,10 @@ class ClaudePipeline:
 
         qa_items = self._normalize_qa_items(kapa_raw.get("question_answers", []))
 
-        target_tokens = min(self.max_input_tokens, 8000)
+        # Use most of the model's input budget per chunk so we don't make
+        # hundreds of tiny API calls. Leave headroom for the system prompt and
+        # response budget.
+        target_tokens = max(20000, self.max_input_tokens - 20000)
         chunks = self._chunk_by_local_size(
             qa_items,
             "question_answers",
@@ -457,22 +480,36 @@ class ClaudePipeline:
             target_tokens,
         )
 
+        # Hard ceiling on chunk count to prevent a runaway billing event if
+        # something upstream (e.g. Kapa returning duplicates) inflates input
+        # size. Increase if you legitimately need to process more.
+        max_chunks = 50
+        if len(chunks) > max_chunks:
+            raise RuntimeError(
+                f"Kapa produced {len(chunks)} chunks (cap is {max_chunks}). "
+                f"This usually means the input data is unexpectedly large or "
+                f"contains duplicates. Aborting before incurring large API costs. "
+                f"Inspect the Kapa raw payload or raise max_chunks if intentional."
+            )
+
         print(f"Kapa estimated tokens: {initial_tokens}")
+        print(f"Kapa target tokens per chunk: {target_tokens}")
         print(f"Kapa chunk count: {len(chunks)}")
 
         chunk_analyses: list[dict[str, Any]] = []
+        all_classified: list[dict[str, Any]] = []
         for i, chunk in enumerate(chunks, start=1):
             print(f"Analyzing Kapa chunk {i}/{len(chunks)}")
-            chunk_analyses.append(
-                self._structured_json(
-                    system_prompt=KAPA_CHUNK_SYSTEM,
-                    payload=chunk,
-                    schema=KAPA_CHUNK_SCHEMA,
-                    max_tokens=3500,
-                )
+            result = self._structured_json(
+                system_prompt=KAPA_CHUNK_SYSTEM,
+                payload=chunk,
+                schema=KAPA_CHUNK_SCHEMA,
+                max_tokens=6000,
             )
+            chunk_analyses.append(result)
+            all_classified.extend(result.get("classified_conversations", []))
 
-        return self._structured_json(
+        synthesis = self._structured_json(
             system_prompt=KAPA_SYNTHESIS_SYSTEM,
             payload={
                 "source": "kapa",
@@ -482,6 +519,11 @@ class ClaudePipeline:
             schema=KAPA_SYNTHESIS_SCHEMA,
             max_tokens=8000,
         )
+
+        # Attach the classified conversations so downstream consumers
+        # (e.g. the HTML report) can show full conversation detail per theme.
+        synthesis["classified_conversations"] = all_classified
+        return synthesis
 
     def synthesize(
         self,
