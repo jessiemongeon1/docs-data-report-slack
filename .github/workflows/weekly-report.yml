@@ -44,7 +44,7 @@ jobs:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
           SITES_JSON: ${{ secrets.SITES_JSON }}
-          CLAUDE_MAX_INPUT_TOKENS: ${{ secrets.CLAUDE_MAX_INPUT_TOKENS }}
+          CLAUDE_MAX_INPUT_TOKENS: "120000"
           REFERRER_ALLOWLIST: "sui.io,walrus.xyz,claude.ai,chatgpt.com,gemini.google.com"
           REFERRER_DENYLIST: "docs.sui.io,docs.wal.app"
 

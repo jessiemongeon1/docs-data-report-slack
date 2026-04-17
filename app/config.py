@@ -88,6 +88,6 @@ class Settings:
             report_output_dir=Path(_get_env_str("REPORT_OUTPUT_DIR", "./artifacts/reports")),
             site_output_dir=Path(_get_env_str("SITE_OUTPUT_DIR", "./reports")),
             claude_model=_get_env_str("CLAUDE_MODEL", "claude-sonnet-4-6"),
-            claude_max_input_tokens=_get_env_int("CLAUDE_MAX_INPUT_TOKENS", 8000),
+            claude_max_input_tokens=_get_env_int("CLAUDE_MAX_INPUT_TOKENS", 120000),
             report_days=_get_env_int("REPORT_DAYS", 7),
         )
