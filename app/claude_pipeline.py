@@ -12,6 +12,7 @@ You analyze raw Plausible analytics JSON.
 
 Be concise, specific, and grounded only in the provided data.
 Focus on key metrics, top pages, referrals, and notable trends.
+Return exactly 20 pages in top_pages (or all pages if fewer than 20 exist).
 """.strip()
 
 KAPA_CHUNK_SYSTEM = """

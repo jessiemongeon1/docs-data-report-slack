@@ -10,6 +10,7 @@ def render_html(template_dir: Path, template_name: str, context: dict[str, Any])
     env = Environment(
         loader=FileSystemLoader(str(template_dir)),
         autoescape=select_autoescape(["html", "xml"]),
+        extensions=["jinja2.ext.loopcontrols"],
     )
     template = env.get_template(template_name)
     return template.render(**context)

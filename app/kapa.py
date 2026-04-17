@@ -79,6 +79,10 @@ class KapaClient:
 
         cleaned: list[dict[str, Any]] = []
 
+        # Log available keys from first item so we can verify field names
+        if items and isinstance(items[0], dict):
+            print(f"Kapa item keys: {sorted(items[0].keys())}")
+
         for item in items:
             if not isinstance(item, dict):
                 continue
@@ -110,11 +114,16 @@ class KapaClient:
                     "conversation_id": (
                         item.get("conversation_id")
                         or item.get("thread_id")
+                        or item.get("session_id")
                     ),
                     "user_id": (
                         item.get("user_id")
                         or item.get("user")
                         or item.get("anonymous_user_id")
+                        or item.get("user_identifier")
+                        or item.get("external_user_id")
+                        or item.get("fingerprint")
+                        or item.get("ip_address")
                     ),
                 }
             )

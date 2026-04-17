@@ -182,11 +182,8 @@ section + section { border-top: 1px solid var(--border); }
       </div>
       {% endfor %}
     </div>
-    <div class="takeaway-list">
-      <div class="takeaway">
-        <h4>Summary</h4>
-        <p>{{ final_analysis.executive_summary.summary }}</p>
-      </div>
+    <div style="margin-top:20px;padding:20px 24px;background:var(--surface);border-radius:8px;border:1px solid var(--border);font-size:15px;line-height:1.7;color:var(--text);">
+      {{ final_analysis.executive_summary.summary }}
     </div>
   </section>
 
@@ -279,7 +276,7 @@ section + section { border-top: 1px solid var(--border); }
   <section id="top-referrers">
     <div class="section-header">
       <div class="section-label">Plausible</div>
-      <h2 class="section-title">Top Referrer URLs</h2>
+      <h2 class="section-title">Top 10 Referrer URLs</h2>
       <p class="section-desc">Exact referring URL or domain and the number of visits driven from each. Direct (no referrer) is excluded.</p>
     </div>
     <table class="data-table">
@@ -291,11 +288,14 @@ section + section { border-top: 1px solid var(--border); }
         </tr>
       </thead>
       <tbody>
+        {% set ref_count = namespace(n=0) %}
         {% for row in plausible_raw.top_referrers.results %}
+          {% if ref_count.n >= 10 %}{% break %}{% endif %}
           {% set referrer = row.dimensions[0] %}
           {% set visitors = row.metrics[0] %}
           {% set pageviews = row.metrics[1] %}
           {% if referrer and referrer != "Direct / None" %}
+          {% set ref_count.n = ref_count.n + 1 %}
           <tr>
             <td>
               {% if referrer.startswith('http://') or referrer.startswith('https://') %}
@@ -377,41 +377,34 @@ section + section { border-top: 1px solid var(--border); }
         <h4>{{ t.name }}</h4>
         <p class="summary">{{ t.why_it_matters }}</p>
 
-        {# Show classified conversations for this theme #}
-        {% if kapa_analysis.classified_conversations %}
-          {# Collect conversations matching this theme name (case-insensitive, fuzzy) #}
-          {% set theme_lower = t.name | lower %}
-          {% set convos = [] %}
-          {% for c in kapa_analysis.classified_conversations %}
-            {% if c.theme | lower == theme_lower or theme_lower in c.theme | lower or c.theme | lower in theme_lower %}
-              {% set _ = convos.append(c) %}
-            {% endif %}
-          {% endfor %}
-
-          {% if convos %}
-          <details style="margin-top:12px;">
-            <summary style="cursor:pointer;font-size:12px;color:var(--text-muted);font-family:var(--font-mono);letter-spacing:0.5px;">
-              Show {{ convos | length }} conversation{{ 's' if convos | length != 1 else '' }}
-            </summary>
-            <div style="margin-top:8px;display:flex;flex-direction:column;gap:8px;">
-              {% for c in convos %}
-              <div style="padding:10px 14px;border:1px solid var(--border);border-radius:6px;font-size:13px;background:var(--surface);">
-                <div style="font-weight:600;color:var(--text);margin-bottom:4px;">
-                  Q: {{ c.question }}
-                </div>
-                <div style="color:var(--text-muted);font-size:12px;">
-                  A: {{ c.answer_snippet }}{% if c.answer_snippet | length >= 195 %}…{% endif %}
-                </div>
-                {% if c.thread_id %}
-                <div style="color:var(--text-dim);font-size:11px;margin-top:4px;font-family:var(--font-mono);">
-                  thread: {{ c.thread_id }}
-                </div>
+        {# Show classified conversations for this theme (pre-grouped in Python) #}
+        {% set convos = theme_conversations.get(t.name, []) if theme_conversations else [] %}
+        {% if convos %}
+        <details style="margin-top:12px;">
+          <summary style="cursor:pointer;font-size:12px;color:var(--text-muted);font-family:var(--font-mono);letter-spacing:0.5px;">
+            Show {{ convos | length }} conversation{{ 's' if convos | length != 1 else '' }}
+          </summary>
+          <div style="margin-top:8px;display:flex;flex-direction:column;gap:8px;">
+            {% for c in convos %}
+            <div style="padding:10px 14px;border:1px solid var(--border);border-radius:6px;font-size:13px;background:var(--surface);">
+              <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">
+                <span style="font-weight:600;color:var(--text);">Q: {{ c.question }}</span>
+                {% if c.thread_question_count and c.thread_question_count > 1 %}
+                <span style="font-size:10px;padding:2px 6px;border-radius:4px;background:var(--accent);color:var(--accent-foreground, var(--text-muted));white-space:nowrap;">{{ c.thread_question_count }}-part thread</span>
                 {% endif %}
               </div>
-              {% endfor %}
+              <div style="color:var(--text-muted);font-size:12px;">
+                A: {{ c.answer_snippet }}{% if c.answer_snippet | length >= 195 %}…{% endif %}
+              </div>
+              {% if c.thread_id %}
+              <div style="color:var(--text-dim);font-size:11px;margin-top:4px;font-family:var(--font-mono);">
+                thread: {{ c.thread_id }}
+              </div>
+              {% endif %}
             </div>
-          </details>
-          {% endif %}
+            {% endfor %}
+          </div>
+        </details>
         {% endif %}
       </div>
       {% endfor %}
@@ -419,28 +412,42 @@ section + section { border-top: 1px solid var(--border); }
   </section>
 
   {# ── Kapa User Engagement ── #}
-  {% if kapa_user_stats and kapa_user_stats.total_identified_users > 0 %}
+  {% if kapa_user_stats %}
   <section id="kapa-users">
     <div class="section-header">
       <div class="section-label">Kapa</div>
       <h2 class="section-title">User engagement</h2>
-      <p class="section-desc">Returning users and conversation volume from identified Kapa users this period.</p>
     </div>
-    <div style="display:flex;gap:24px;margin-bottom:24px;">
-      <div class="metric-card" style="flex:1;text-align:center;padding:16px;border:1px solid var(--border);border-radius:8px;">
-        <div style="font-size:28px;font-weight:700;color:var(--text);">{{ kapa_user_stats.total_identified_users }}</div>
-        <div style="font-size:12px;color:var(--text-muted);text-transform:uppercase;letter-spacing:1px;">Identified users</div>
+    <div style="display:flex;flex-wrap:wrap;gap:16px;margin-bottom:24px;">
+      <div style="flex:1;min-width:140px;text-align:center;padding:16px;border:1px solid var(--border);border-radius:8px;">
+        <div style="font-size:28px;font-weight:700;color:var(--text);">{{ kapa_user_stats.total_questions }}</div>
+        <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:1px;">Total questions</div>
       </div>
-      <div class="metric-card" style="flex:1;text-align:center;padding:16px;border:1px solid var(--border);border-radius:8px;">
-        <div style="font-size:28px;font-weight:700;color:var(--text);">{{ kapa_user_stats.returning_user_count }}</div>
-        <div style="font-size:12px;color:var(--text-muted);text-transform:uppercase;letter-spacing:1px;">Returning users (2+ convos)</div>
-      </div>
-      <div class="metric-card" style="flex:1;text-align:center;padding:16px;border:1px solid var(--border);border-radius:8px;">
+      <div style="flex:1;min-width:140px;text-align:center;padding:16px;border:1px solid var(--border);border-radius:8px;">
         <div style="font-size:28px;font-weight:700;color:var(--text);">{{ kapa_user_stats.total_conversations }}</div>
-        <div style="font-size:12px;color:var(--text-muted);text-transform:uppercase;letter-spacing:1px;">Total conversations</div>
+        <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:1px;">Conversations</div>
       </div>
+      <div style="flex:1;min-width:140px;text-align:center;padding:16px;border:1px solid var(--border);border-radius:8px;">
+        <div style="font-size:28px;font-weight:700;color:var(--text);">{{ kapa_user_stats.single_question_conversations }}</div>
+        <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:1px;">Single-question</div>
+      </div>
+      <div style="flex:1;min-width:140px;text-align:center;padding:16px;border:1px solid var(--border);border-radius:8px;">
+        <div style="font-size:28px;font-weight:700;color:var(--text);">{{ kapa_user_stats.multi_question_conversations }}</div>
+        <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:1px;">Multi-question</div>
+      </div>
+      {% if kapa_user_stats.total_identified_users > 0 %}
+      <div style="flex:1;min-width:140px;text-align:center;padding:16px;border:1px solid var(--border);border-radius:8px;">
+        <div style="font-size:28px;font-weight:700;color:var(--text);">{{ kapa_user_stats.total_identified_users }}</div>
+        <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:1px;">Identified users</div>
+      </div>
+      <div style="flex:1;min-width:140px;text-align:center;padding:16px;border:1px solid var(--border);border-radius:8px;">
+        <div style="font-size:28px;font-weight:700;color:var(--text);">{{ kapa_user_stats.returning_user_count }}</div>
+        <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:1px;">Returning (2+ convos)</div>
+      </div>
+      {% endif %}
     </div>
     {% if kapa_user_stats.returning_users %}
+    <h4 style="font-size:13px;color:var(--text-muted);margin-bottom:8px;">Top returning users</h4>
     <table class="data-table">
       <thead>
         <tr>
@@ -460,12 +467,12 @@ section + section { border-top: 1px solid var(--border); }
     {% endif %}
     {% if kapa_user_stats.conversation_distribution %}
     <div style="margin-top:16px;">
-      <h4 style="font-size:13px;color:var(--text-muted);margin-bottom:8px;">Conversation distribution</h4>
+      <h4 style="font-size:13px;color:var(--text-muted);margin-bottom:8px;">Conversations per user</h4>
       <table class="data-table">
         <thead>
           <tr>
-            <th class="num">Conversations per user</th>
-            <th class="num">Number of users</th>
+            <th class="num">Conversations</th>
+            <th class="num">Users</th>
           </tr>
         </thead>
         <tbody>

@@ -44,29 +44,29 @@ def compute_kapa_user_stats(kapa_raw: dict[str, Any]) -> dict[str, Any]:
     """Compute returning-user and conversation stats from Kapa QA items."""
     qa_items = kapa_raw.get("question_answers", [])
 
+    # Count unique conversations (by conversation_id/thread_id)
+    all_conversation_ids: set[str] = set()
     # Map user_id → set of conversation_ids
     user_conversations: dict[str, set[str]] = {}
-    # Also count conversations with no user_id
-    anonymous_conversations: set[str] = set()
 
     for item in qa_items:
         user_id = item.get("user_id")
-        conv_id = item.get("conversation_id") or item.get("thread_id") or "unknown"
+        conv_id = (
+            item.get("conversation_id")
+            or item.get("thread_id")
+            or "unknown"
+        )
+        conv_id_str = str(conv_id)
+        all_conversation_ids.add(conv_id_str)
 
         if user_id:
-            user_conversations.setdefault(str(user_id), set()).add(str(conv_id))
-        else:
-            anonymous_conversations.add(str(conv_id))
+            user_conversations.setdefault(str(user_id), set()).add(conv_id_str)
 
+    total_conversations = len(all_conversation_ids)
     total_users = len(user_conversations)
     returning_users = {
         uid: convs for uid, convs in user_conversations.items() if len(convs) > 1
     }
-    total_conversations = len(
-        set().union(*user_conversations.values()) | anonymous_conversations
-        if user_conversations
-        else anonymous_conversations
-    )
 
     # Build a sorted list of returning users by conversation count (desc)
     returning_user_list = sorted(
@@ -85,12 +85,27 @@ def compute_kapa_user_stats(kapa_raw: dict[str, Any]) -> dict[str, Any]:
         for k, v in sorted(convo_counts.items())
     ]
 
+    # Questions-per-conversation distribution
+    conv_question_counts: Counter[str] = Counter()
+    for item in qa_items:
+        conv_id = str(
+            item.get("conversation_id")
+            or item.get("thread_id")
+            or "unknown"
+        )
+        conv_question_counts[conv_id] += 1
+
+    single_question = sum(1 for c in conv_question_counts.values() if c == 1)
+    multi_question = sum(1 for c in conv_question_counts.values() if c > 1)
+
     return {
         "total_identified_users": total_users,
         "total_conversations": total_conversations,
-        "anonymous_conversations": len(anonymous_conversations),
+        "total_questions": len(qa_items),
+        "single_question_conversations": single_question,
+        "multi_question_conversations": multi_question,
         "returning_user_count": len(returning_users),
-        "returning_users": returning_user_list[:20],  # top 20 by volume
+        "returning_users": returning_user_list[:20],
         "conversation_distribution": distribution,
     }
 
@@ -138,6 +153,57 @@ def process_site(
         kapa_analysis,
     )
 
+    # Pre-group classified conversations by final theme name. Uses best-match
+    # logic: exact match first, then substring containment, then assign to
+    # closest theme. Unmatched conversations go into the most similar theme.
+    classified = kapa_analysis.get("classified_conversations", [])
+    final_themes = [t["name"] for t in final_analysis.get("themes", [])]
+    theme_conversations: dict[str, list[dict[str, Any]]] = {t: [] for t in final_themes}
+
+    # Also group by thread_id to detect multi-question conversations
+    thread_questions: dict[str, list[dict[str, Any]]] = {}
+    for c in classified:
+        tid = c.get("thread_id") or ""
+        if tid:
+            thread_questions.setdefault(tid, []).append(c)
+
+    for c in classified:
+        chunk_theme = c.get("theme", "").lower()
+        matched = False
+        # Exact match
+        for ft in final_themes:
+            if ft.lower() == chunk_theme:
+                theme_conversations[ft].append(c)
+                matched = True
+                break
+        if matched:
+            continue
+        # Substring match (chunk theme contains final theme or vice versa)
+        for ft in final_themes:
+            if ft.lower() in chunk_theme or chunk_theme in ft.lower():
+                theme_conversations[ft].append(c)
+                matched = True
+                break
+        if matched:
+            continue
+        # Word-overlap match: pick the final theme sharing the most words
+        chunk_words = set(chunk_theme.split())
+        best_theme = final_themes[0] if final_themes else None
+        best_overlap = 0
+        for ft in final_themes:
+            overlap = len(chunk_words & set(ft.lower().split()))
+            if overlap > best_overlap:
+                best_overlap = overlap
+                best_theme = ft
+        if best_theme:
+            theme_conversations[best_theme].append(c)
+
+    # Tag each conversation with how many questions are in its thread
+    for theme_name, convos in theme_conversations.items():
+        for c in convos:
+            tid = c.get("thread_id") or ""
+            c["thread_question_count"] = len(thread_questions.get(tid, [])) if tid else 1
+
     dump_json(report_dir / f"{site_slug}_plausible_analysis.json", plausible_analysis)
     dump_json(report_dir / f"{site_slug}_kapa_analysis.json", kapa_analysis)
     dump_json(report_dir / f"{site_slug}_final_analysis.json", final_analysis)
@@ -160,6 +226,7 @@ def process_site(
             "plausible_raw": plausible_raw,
             "kapa_raw": kapa_raw,
             "kapa_user_stats": kapa_user_stats,
+            "theme_conversations": theme_conversations,
             "plausible_analysis": plausible_analysis,
             "kapa_analysis": kapa_analysis,
             "final_analysis": final_analysis,

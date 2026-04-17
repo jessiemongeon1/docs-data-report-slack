@@ -37,6 +37,33 @@
     "fields": [
       {
         "type": "mrkdwn",
+        "text": "*Total questions*\n`{{ site.kapa_user_stats.total_questions }}`"
+      },
+      {
+        "type": "mrkdwn",
+        "text": "*Conversations*\n`{{ site.kapa_user_stats.total_conversations }}`"
+      }
+    ]
+  }
+  ,{
+    "type": "section",
+    "fields": [
+      {
+        "type": "mrkdwn",
+        "text": "*Single-question*\n`{{ site.kapa_user_stats.single_question_conversations }}`"
+      },
+      {
+        "type": "mrkdwn",
+        "text": "*Multi-question*\n`{{ site.kapa_user_stats.multi_question_conversations }}`"
+      }
+    ]
+  }
+  {% if site.kapa_user_stats.total_identified_users > 0 %}
+  ,{
+    "type": "section",
+    "fields": [
+      {
+        "type": "mrkdwn",
         "text": "*Identified users*\n`{{ site.kapa_user_stats.total_identified_users }}`"
       },
       {
@@ -53,6 +80,7 @@
       "text": "*🔄 Top returning users*\n{% for u in site.kapa_user_stats.returning_users %}• `{{ u.user_id }}` — {{ u.conversations }} conversations\n{% endfor %}"
     }
   }
+  {% endif %}
   {% endif %}
   {% endif %}
   ,{
