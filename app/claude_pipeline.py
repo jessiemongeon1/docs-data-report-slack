@@ -29,9 +29,7 @@ For each theme you identify:
 
 You MUST also return a classified_conversations array that maps every conversation in the chunk to one of your identified theme names. For each conversation include:
 - theme: the exact name of one of your themes (must match a name in the themes array)
-- question: the user's question (first 300 characters)
-- answer_snippet: the first 200 characters of the answer
-- thread_id: the thread_id if available, otherwise null
+- index: the zero-based index of the conversation in the input question_answers array
 """.strip()
 
 KAPA_SYNTHESIS_SYSTEM = """
@@ -161,11 +159,9 @@ KAPA_CHUNK_SCHEMA = {
                 "type": "object",
                 "properties": {
                     "theme": {"type": "string"},
-                    "question": {"type": "string"},
-                    "answer_snippet": {"type": "string"},
-                    "thread_id": {"type": ["string", "null"]},
+                    "index": {"type": "integer"},
                 },
-                "required": ["theme", "question", "answer_snippet"],
+                "required": ["theme", "index"],
                 "additionalProperties": False,
             },
         },
@@ -504,10 +500,22 @@ class ClaudePipeline:
                 system_prompt=KAPA_CHUNK_SYSTEM,
                 payload=chunk,
                 schema=KAPA_CHUNK_SCHEMA,
-                max_tokens=16000,
+                max_tokens=4000,
             )
             chunk_analyses.append(result)
-            all_classified.extend(result.get("classified_conversations", []))
+
+            # Resolve indices back to the original QA items in this chunk.
+            chunk_items = chunk.get("raw", {}).get("question_answers", [])
+            for cc in result.get("classified_conversations", []):
+                idx = cc.get("index", -1)
+                if 0 <= idx < len(chunk_items):
+                    item = chunk_items[idx]
+                    all_classified.append({
+                        "theme": cc["theme"],
+                        "question": (item.get("question") or "")[:300],
+                        "answer_snippet": (item.get("answer") or "")[:200],
+                        "thread_id": item.get("thread_id"),
+                    })
 
         synthesis = self._structured_json(
             system_prompt=KAPA_SYNTHESIS_SYSTEM,
