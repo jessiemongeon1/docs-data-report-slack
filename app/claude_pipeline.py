@@ -62,7 +62,11 @@ Output limits — strictly enforce these:
 - page_theme_correlations: at most 8 items. insight: 1 sentence, under 15 words.
 - notable_takeaways: at most 4 items. evidence: exact metric/count only (no prose). interpretation: 1 sentence. recommended_action: omit — actions go in sprint_recommendations only.
 - themes: at most 6 items. why_it_matters: 1 sentence, under 20 words. recommended_doc_action: omit — actions go in sprint_recommendations only.
-- sprint_recommendations: at most 7 items total. scope, why_now, expected_impact: 1 sentence each, under 20 words.
+- sprint_recommendations: exactly 7 items total, distributed as follows:
+    - At least 3 documentation_action items
+    - At least 2 tooling_action items
+    - At least 2 developer_experience_action items
+  scope, why_now, expected_impact: 1 sentence each, under 20 words.
 
 Content rules:
 - Do NOT include raw counts of questions or themes in the executive_summary.summary text — those are shown separately as structured fields. The summary should focus on the key findings and actionable insights.
@@ -70,9 +74,10 @@ Content rules:
 - For notable_takeaways, evidence must be a raw number or metric — never "several", "many", or vague phrases.
 - For sprint_recommendations, category must be exactly one of:
     - documentation_action: changes to existing documentation pages (new guides, clarifications, restructuring, missing reference content, broken examples).
-    - tooling_action: improvements to existing engineering-owned developer tools — CLI commands (sui client, sui move), SDK methods, Move compiler diagnostics, IDE plugins, framework APIs, error messages, or developer-facing tooling output. These are things an engineering team builds and ships, NOT documentation changes and NOT third-party services. Never recommend Kapa.ai improvements here — our team does not manage Kapa.
-    - developer_experience_action: net-new engineering capabilities that do not yet exist — new CLI commands, new SDK features, new APIs, new developer dashboards, new debugging tools, new templates or scaffolding, new observability surfaces. These are things for engineering to build from scratch, NOT documentation pages and NOT third-party service requests. Never recommend Kapa.ai improvements here.
-- tooling_action and developer_experience_action must ONLY contain recommendations that require engineering work (code changes to tools, SDKs, CLIs, frameworks, or APIs). They must NEVER contain documentation changes, content rewrites, or improvements to third-party services like Kapa.ai. If a finding is about missing docs, unclear guides, or content gaps, it belongs in documentation_action only.
+    - tooling_action: improvements to existing engineering-owned developer tools. Derive these from patterns in what developers ask about — if many questions involve CLI errors, recommend better error messages; if questions show confusion about SDK behavior, recommend improved SDK output or validation; if questions reveal common pitfalls with Move compilation, recommend compiler warnings. Examples: better `sui client` error messages, SDK method validation improvements, Move compiler diagnostic improvements, IDE plugin enhancements, framework API ergonomics, CLI help text improvements. These are code changes an engineering team ships, NOT documentation and NOT third-party services like Kapa.ai.
+    - developer_experience_action: net-new engineering capabilities that do not yet exist. Derive these from gaps developers encounter — if developers repeatedly need to do something manually, recommend a tool for it; if there is no way to inspect something, recommend a new command or API. Examples: new CLI commands, new SDK utilities, new APIs, new developer dashboards, new debugging tools, new project templates, new observability surfaces. These are things for engineering to build from scratch, NOT docs and NOT third-party services like Kapa.ai.
+- CRITICAL: You MUST include at least 2 tooling_action and at least 2 developer_experience_action items. If you cannot find strong signals, look harder at the Kapa questions — every developer pain point implies either a tool that could work better (tooling_action) or a tool that should exist but does not (developer_experience_action). Think about what an SDK, CLI, or framework engineer would want to know from this data.
+- tooling_action and developer_experience_action must ONLY contain recommendations that require engineering work (code changes to tools, SDKs, CLIs, frameworks, or APIs). They must NEVER contain documentation changes, content rewrites, or improvements to third-party services like Kapa.ai.
 - Each sprint recommendation must belong to exactly one category. Do not duplicate the same recommendation across categories.
 - If you find yourself writing the same finding in two sections, delete it from the lower-priority section. Priority order: sprint_recommendations > notable_takeaways > themes > executive_summary.
 """.strip()
