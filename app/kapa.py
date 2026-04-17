@@ -79,9 +79,10 @@ class KapaClient:
 
         cleaned: list[dict[str, Any]] = []
 
-        # Log available keys from first item so we can verify field names
-        if items and isinstance(items[0], dict):
+        # Log available keys from first item (only once)
+        if items and isinstance(items[0], dict) and not hasattr(self, '_logged_keys'):
             print(f"Kapa item keys: {sorted(items[0].keys())}")
+            self._logged_keys = True
 
         for item in items:
             if not isinstance(item, dict):
