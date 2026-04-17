@@ -421,28 +421,20 @@ section + section { border-top: 1px solid var(--border); }
     <div style="display:flex;flex-wrap:wrap;gap:16px;margin-bottom:24px;">
       <div style="flex:1;min-width:140px;text-align:center;padding:16px;border:1px solid var(--border);border-radius:8px;">
         <div style="font-size:28px;font-weight:700;color:var(--text);">{{ kapa_user_stats.total_questions }}</div>
-        <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:1px;">Total questions</div>
+        <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:1px;">Questions asked</div>
       </div>
-      <div style="flex:1;min-width:140px;text-align:center;padding:16px;border:1px solid var(--border);border-radius:8px;">
-        <div style="font-size:28px;font-weight:700;color:var(--text);">{{ kapa_user_stats.total_conversations }}</div>
-        <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:1px;">Conversations</div>
-      </div>
-      <div style="flex:1;min-width:140px;text-align:center;padding:16px;border:1px solid var(--border);border-radius:8px;">
-        <div style="font-size:28px;font-weight:700;color:var(--text);">{{ kapa_user_stats.single_question_conversations }}</div>
-        <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:1px;">Single-question</div>
-      </div>
-      <div style="flex:1;min-width:140px;text-align:center;padding:16px;border:1px solid var(--border);border-radius:8px;">
-        <div style="font-size:28px;font-weight:700;color:var(--text);">{{ kapa_user_stats.multi_question_conversations }}</div>
-        <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:1px;">Multi-question</div>
-      </div>
-      {% if kapa_user_stats.total_identified_users > 0 %}
       <div style="flex:1;min-width:140px;text-align:center;padding:16px;border:1px solid var(--border);border-radius:8px;">
         <div style="font-size:28px;font-weight:700;color:var(--text);">{{ kapa_user_stats.total_identified_users }}</div>
-        <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:1px;">Identified users</div>
+        <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:1px;">Unique users</div>
       </div>
       <div style="flex:1;min-width:140px;text-align:center;padding:16px;border:1px solid var(--border);border-radius:8px;">
         <div style="font-size:28px;font-weight:700;color:var(--text);">{{ kapa_user_stats.returning_user_count }}</div>
-        <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:1px;">Returning (2+ convos)</div>
+        <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:1px;">Returning users (2+ questions)</div>
+      </div>
+      {% if kapa_user_stats.total_identified_users > 0 %}
+      <div style="flex:1;min-width:140px;text-align:center;padding:16px;border:1px solid var(--border);border-radius:8px;">
+        <div style="font-size:28px;font-weight:700;color:var(--text);">{{ "%.1f" | format(kapa_user_stats.total_questions / kapa_user_stats.total_identified_users) }}</div>
+        <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:1px;">Avg questions per user</div>
       </div>
       {% endif %}
     </div>
@@ -452,33 +444,33 @@ section + section { border-top: 1px solid var(--border); }
       <thead>
         <tr>
           <th>User ID</th>
-          <th class="num">Conversations</th>
+          <th class="num">Questions</th>
         </tr>
       </thead>
       <tbody>
         {% for u in kapa_user_stats.returning_users %}
         <tr>
           <td><span class="page-path">{{ u.user_id }}</span></td>
-          <td class="num">{{ u.conversations }}</td>
+          <td class="num">{{ u.questions }}</td>
         </tr>
         {% endfor %}
       </tbody>
     </table>
     {% endif %}
-    {% if kapa_user_stats.conversation_distribution %}
+    {% if kapa_user_stats.question_distribution %}
     <div style="margin-top:16px;">
-      <h4 style="font-size:13px;color:var(--text-muted);margin-bottom:8px;">Conversations per user</h4>
+      <h4 style="font-size:13px;color:var(--text-muted);margin-bottom:8px;">Questions per user</h4>
       <table class="data-table">
         <thead>
           <tr>
-            <th class="num">Conversations</th>
+            <th class="num">Questions</th>
             <th class="num">Users</th>
           </tr>
         </thead>
         <tbody>
-          {% for d in kapa_user_stats.conversation_distribution %}
+          {% for d in kapa_user_stats.question_distribution %}
           <tr>
-            <td class="num">{{ d.conversations }}</td>
+            <td class="num">{{ d.questions }}</td>
             <td class="num">{{ d.users }}</td>
           </tr>
           {% endfor %}

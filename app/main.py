@@ -121,72 +121,53 @@ def build_report_url(repo: str, run_id: str, report_filename: str) -> str:
 
 
 def compute_kapa_user_stats(kapa_raw: dict[str, Any]) -> dict[str, Any]:
-    """Compute returning-user and conversation stats from Kapa QA items."""
+    """Compute user engagement stats from Kapa QA items.
+
+    Each Kapa QA item is one question asked by one user (thread_id is per
+    question, not per session). So total_questions == number of QA items.
+    We group by end_user_id to find returning users.
+    """
     qa_items = kapa_raw.get("question_answers", [])
 
-    # Count unique conversations (by conversation_id/thread_id)
-    all_conversation_ids: set[str] = set()
-    # Map user_id → set of conversation_ids
-    user_conversations: dict[str, set[str]] = {}
+    # Map user_id → list of question thread_ids
+    user_questions: dict[str, list[str]] = {}
 
     for item in qa_items:
         user_id = item.get("user_id")
-        conv_id = (
-            item.get("conversation_id")
-            or item.get("thread_id")
-            or "unknown"
-        )
-        conv_id_str = str(conv_id)
-        all_conversation_ids.add(conv_id_str)
-
+        thread_id = item.get("thread_id") or item.get("conversation_id") or "unknown"
         if user_id:
-            user_conversations.setdefault(str(user_id), set()).add(conv_id_str)
+            user_questions.setdefault(str(user_id), []).append(str(thread_id))
 
-    total_conversations = len(all_conversation_ids)
-    total_users = len(user_conversations)
+    total_questions = len(qa_items)
+    total_users = len(user_questions)
     returning_users = {
-        uid: convs for uid, convs in user_conversations.items() if len(convs) > 1
+        uid: questions for uid, questions in user_questions.items()
+        if len(questions) > 1
     }
 
-    # Build a sorted list of returning users by conversation count (desc)
+    # Build a sorted list of returning users by question count (desc)
     returning_user_list = sorted(
         [
-            {"user_id": uid, "conversations": len(convs)}
-            for uid, convs in returning_users.items()
+            {"user_id": uid, "questions": len(questions)}
+            for uid, questions in returning_users.items()
         ],
-        key=lambda x: x["conversations"],
+        key=lambda x: x["questions"],
         reverse=True,
     )
 
-    # Conversation-count distribution for all identified users
-    convo_counts = Counter(len(convs) for convs in user_conversations.values())
+    # Questions-per-user distribution
+    question_counts = Counter(len(qs) for qs in user_questions.values())
     distribution = [
-        {"conversations": k, "users": v}
-        for k, v in sorted(convo_counts.items())
+        {"questions": k, "users": v}
+        for k, v in sorted(question_counts.items())
     ]
 
-    # Questions-per-conversation distribution
-    conv_question_counts: Counter[str] = Counter()
-    for item in qa_items:
-        conv_id = str(
-            item.get("conversation_id")
-            or item.get("thread_id")
-            or "unknown"
-        )
-        conv_question_counts[conv_id] += 1
-
-    single_question = sum(1 for c in conv_question_counts.values() if c == 1)
-    multi_question = sum(1 for c in conv_question_counts.values() if c > 1)
-
     return {
+        "total_questions": total_questions,
         "total_identified_users": total_users,
-        "total_conversations": total_conversations,
-        "total_questions": len(qa_items),
-        "single_question_conversations": single_question,
-        "multi_question_conversations": multi_question,
         "returning_user_count": len(returning_users),
         "returning_users": returning_user_list[:20],
-        "conversation_distribution": distribution,
+        "question_distribution": distribution,
     }
 
 
