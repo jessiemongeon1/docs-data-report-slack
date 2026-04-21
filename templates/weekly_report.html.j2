@@ -379,73 +379,91 @@ section + section { border-top: 1px solid var(--border); }
   </div>
   {% endmacro %}
 
-  {# ── Developer Topics (grouped by per-question topic label) ── #}
+  {# ── Confidence breakdown bar macro ── #}
+  {% macro confidence_bar(certain, uncertain) %}
+  {% set total = certain + uncertain %}
+  {% if total > 0 %}
+  {% set certain_pct = (certain * 100 / total) | round | int %}
+  {% set uncertain_pct = 100 - certain_pct %}
+  <div style="display:flex;align-items:center;gap:12px;">
+    <div style="flex:1;height:6px;border-radius:3px;background:var(--surface-3);overflow:hidden;display:flex;">
+      <div style="width:{{ certain_pct }}%;background:var(--green);"></div>
+      <div style="width:{{ uncertain_pct }}%;background:var(--yellow);"></div>
+    </div>
+    <div style="font-size:11px;font-family:var(--font-mono);color:var(--text-muted);white-space:nowrap;">
+      <span style="color:var(--green);">{{ certain }} certain</span>
+      &middot;
+      <span style="color:var(--yellow);">{{ uncertain }} uncertain</span>
+    </div>
+  </div>
+  {% endif %}
+  {% endmacro %}
+
+  {# ── Developer Topics by Category ── #}
   <section id="themes">
     <div class="section-header">
       <div class="section-label">Kapa</div>
       <h2 class="section-title">Developer Topics</h2>
-      <p class="section-desc">{{ kapa_analysis.summary }} Questions grouped by specific topic, with confident vs uncertain answer breakdown.</p>
+      <p class="section-desc">{{ kapa_analysis.summary }} Questions grouped by docs.sui.io category, then by specific topic.</p>
     </div>
-    <div class="thread-list">
-      {% for t in topic_stats %}
-      {% set questions = topic_questions.get(t.name, []) if topic_questions else [] %}
-      {% set uncertain_qs = questions | selectattr("confidence", "equalto", "uncertain") | list %}
-      {% set certain_qs = questions | selectattr("confidence", "equalto", "certain") | list %}
-      <div class="thread-card">
-        <div class="thread-meta">
-          <span class="thread-num">#{{ loop.index }}</span>
-          <span class="thread-count">{{ t.evidence_count }} question{{ 's' if t.evidence_count != 1 else '' }}</span>
-        </div>
-        <h4>{{ t.name }}</h4>
 
-        {# Confidence breakdown bar #}
-        {% set total = t.certain_count + t.uncertain_count %}
-        {% if total > 0 %}
-        {% set certain_pct = (t.certain_count * 100 / total) | round | int %}
-        {% set uncertain_pct = 100 - certain_pct %}
-        <div style="margin-top:10px;display:flex;align-items:center;gap:12px;">
-          <div style="flex:1;height:6px;border-radius:3px;background:var(--surface-3);overflow:hidden;display:flex;">
-            <div style="width:{{ certain_pct }}%;background:var(--green);"></div>
-            <div style="width:{{ uncertain_pct }}%;background:var(--yellow);"></div>
-          </div>
-          <div style="font-size:11px;font-family:var(--font-mono);color:var(--text-muted);white-space:nowrap;">
-            <span style="color:var(--green);">{{ t.certain_count }} certain</span>
-            &middot;
-            <span style="color:var(--yellow);">{{ t.uncertain_count }} uncertain</span>
-          </div>
-        </div>
-        {% endif %}
-
-        {# Uncertain questions — shown prominently for investigation #}
-        {% if uncertain_qs %}
-        <details style="margin-top:14px;" open>
-          <summary style="cursor:pointer;font-size:12px;color:var(--yellow);font-family:var(--font-mono);letter-spacing:0.5px;font-weight:500;">
-            {{ uncertain_qs | length }} uncertain — needs review
-          </summary>
-          <div style="margin-top:8px;display:flex;flex-direction:column;gap:8px;border-left:2px solid var(--yellow);padding-left:12px;">
-            {% for q in uncertain_qs %}
-            {{ question_row(q) }}
-            {% endfor %}
-          </div>
-        </details>
-        {% endif %}
-
-        {# Certain questions — collapsed for spot-checking #}
-        {% if certain_qs %}
-        <details style="margin-top:10px;">
-          <summary style="cursor:pointer;font-size:12px;color:var(--green);font-family:var(--font-mono);letter-spacing:0.5px;font-weight:500;">
-            {{ certain_qs | length }} certain — spot check
-          </summary>
-          <div style="margin-top:8px;display:flex;flex-direction:column;gap:8px;border-left:2px solid var(--green);padding-left:12px;">
-            {% for q in certain_qs %}
-            {{ question_row(q) }}
-            {% endfor %}
-          </div>
-        </details>
-        {% endif %}
+    {% for cat in category_data %}
+    <div style="margin-bottom:40px;">
+      {# Category header #}
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:6px;">
+        <h3 style="font-family:var(--font-display);font-size:22px;font-weight:600;letter-spacing:-0.3px;">{{ cat.name }}</h3>
+        <span style="font-size:12px;font-family:var(--font-mono);color:var(--text-dim);">{{ cat.evidence_count }} question{{ 's' if cat.evidence_count != 1 else '' }}</span>
       </div>
-      {% endfor %}
+      <div style="margin-bottom:16px;">
+        {{ confidence_bar(cat.certain_count, cat.uncertain_count) }}
+      </div>
+
+      {# Topics within this category #}
+      <div class="thread-list">
+        {% for t in cat.topics %}
+        <div class="thread-card">
+          <div class="thread-meta">
+            <span class="thread-count">{{ t.evidence_count }} question{{ 's' if t.evidence_count != 1 else '' }}</span>
+          </div>
+          <h4>{{ t.name }}</h4>
+          <div style="margin-top:8px;">
+            {{ confidence_bar(t.certain_count, t.uncertain_count) }}
+          </div>
+
+          {# Uncertain questions — expanded for investigation #}
+          {% set uncertain_qs = t.questions | selectattr("confidence", "equalto", "uncertain") | list %}
+          {% if uncertain_qs %}
+          <details style="margin-top:14px;" open>
+            <summary style="cursor:pointer;font-size:12px;color:var(--yellow);font-family:var(--font-mono);letter-spacing:0.5px;font-weight:500;">
+              {{ uncertain_qs | length }} uncertain — needs review
+            </summary>
+            <div style="margin-top:8px;display:flex;flex-direction:column;gap:8px;border-left:2px solid var(--yellow);padding-left:12px;">
+              {% for q in uncertain_qs %}
+              {{ question_row(q) }}
+              {% endfor %}
+            </div>
+          </details>
+          {% endif %}
+
+          {# Certain questions — collapsed for spot-checking #}
+          {% set certain_qs = t.questions | selectattr("confidence", "equalto", "certain") | list %}
+          {% if certain_qs %}
+          <details style="margin-top:10px;">
+            <summary style="cursor:pointer;font-size:12px;color:var(--green);font-family:var(--font-mono);letter-spacing:0.5px;font-weight:500;">
+              {{ certain_qs | length }} certain — spot check
+            </summary>
+            <div style="margin-top:8px;display:flex;flex-direction:column;gap:8px;border-left:2px solid var(--green);padding-left:12px;">
+              {% for q in certain_qs %}
+              {{ question_row(q) }}
+              {% endfor %}
+            </div>
+          </details>
+          {% endif %}
+        </div>
+        {% endfor %}
+      </div>
     </div>
+    {% endfor %}
   </section>
 
   {# ── Kapa User Engagement ── #}

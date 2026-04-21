@@ -15,6 +15,21 @@ Focus on key metrics, top pages, referrals, and notable trends.
 Return exactly 20 pages in top_pages (or all pages if fewer than 20 exist).
 """.strip()
 
+DOCS_CATEGORIES = [
+    "Accessing Data",
+    "Cryptography",
+    "Manage Packages",
+    "Objects",
+    "Publish & Upgrade Packages",
+    "Security",
+    "Sui Architecture",
+    "Testing & Debugging",
+    "Transaction Payment",
+    "Transactions",
+    "Write Move",
+    "Other",
+]
+
 KAPA_CHUNK_SYSTEM = """
 You analyze one raw chunk of Kapa question/answer data.
 
@@ -29,14 +44,30 @@ For each theme you identify:
 - insight and recommended_action: 1 sentence each, under 20 words.
 
 You MUST also return a classified_questions array that maps every question in the chunk. For each question include:
-- topic: a label for the specific feature, API, or concept area this question is about.
+
+- category: assign each question to EXACTLY ONE of these fixed categories (matching docs.sui.io/develop):
+  "Accessing Data" — GraphQL, gRPC, JSON-RPC, indexers, data queries, reading chain state, event subscriptions
+  "Cryptography" — key schemes, signatures, hashing, zkLogin, multisig, key management
+  "Manage Packages" — dependency management, Move.toml, package configuration
+  "Objects" — object model, ownership, shared objects, dynamic fields, display, wrapping, object IDs, transfers between addresses
+  "Publish & Upgrade Packages" — publishing, upgrading, versioning, sui client publish, upgrade policies
+  "Security" — audit, access control, capability patterns, Seal encryption
+  "Sui Architecture" — consensus, validators, epochs, networks (devnet/testnet/mainnet), full nodes, state sync, protocol
+  "Testing & Debugging" — unit tests, debugging, local development, simulators, error diagnosis
+  "Transaction Payment" — gas, gas estimation, sponsored transactions, gas coins, gas budgets
+  "Transactions" — PTBs, transaction building, signing, executing, Move calls, splitCoins, mergeCoins, transaction effects
+  "Write Move" — Move language, structs, generics, abilities, modules, functions, standard library, Coin/Balance, events
+  "Other" — wallet setup, ecosystem questions, non-technical questions, off-topic, greetings, questions not fitting above categories
+
+- topic: a specific label within the category for what this question is about.
   RULES:
   - Be specific but REUSABLE — multiple questions about the same feature MUST get the same topic label.
-  - GOOD: "PTB splitCoins", "Move Generics", "Kiosk Transfer Policies", "gRPC API", "GraphQL Pagination", "Coin and Balance Operations", "Sui CLI Errors", "Object Ownership", "DeepBook AMM"
-  - BAD (too unique per question): "splitCoins type error on line 42", "how to query checkpoint 12345", "my wallet shows wrong balance"
-  - BAD (too broad): "SDK", "Errors", "Transactions", "Questions", "General"
-  - Think of the topic as a docs page title — specific enough to be useful, general enough that 2-10 related questions share it.
-  - Use consistent naming across questions: if one question gets "Move Generics", another about generic type constraints should also get "Move Generics", not "Generic Type Parameters".
+  - GOOD: "GraphQL Pagination", "gRPC getCheckpoint", "PTB splitCoins", "Move Generics", "Object Ownership", "Gas Estimation", "zkLogin Setup"
+  - BAD (too unique): "splitCoins type error on line 42", "how to query checkpoint 12345"
+  - BAD (too broad): "Data", "Errors", "Transactions", "General"
+  - Think of it as a docs page title — specific enough to be useful, general enough that 2-10 questions share it.
+  - Use consistent naming: if one question gets "Move Generics", another about generic constraints should also get "Move Generics".
+
 - theme: the exact name of one of your themes (must match a name in the themes array) — used only for the high-level summary
 - index: the zero-based index of the question in the input question_answers array
 """.strip()
@@ -183,11 +214,15 @@ KAPA_CHUNK_SCHEMA = {
             "items": {
                 "type": "object",
                 "properties": {
+                    "category": {
+                        "type": "string",
+                        "enum": DOCS_CATEGORIES,
+                    },
                     "topic": {"type": "string"},
                     "theme": {"type": "string"},
                     "index": {"type": "integer"},
                 },
-                "required": ["topic", "theme", "index"],
+                "required": ["category", "topic", "theme", "index"],
                 "additionalProperties": False,
             },
         },
@@ -533,6 +568,7 @@ class ClaudePipeline:
                 if 0 <= idx < len(chunk_items):
                     item = chunk_items[idx]
                     all_classified.append({
+                        "category": cc.get("category", "Other"),
                         "topic": cc.get("topic") or cc["theme"],
                         "theme": cc["theme"],
                         "question": (item.get("question") or "")[:300],

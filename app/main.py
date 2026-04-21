@@ -229,42 +229,20 @@ def process_site(
             )
             print(f"Fact-checked {checked_count}/{len(recommendations)} recommendations")
 
-    # Group classified questions by their per-question topic label (not the
-    # LLM's high-level theme). This gives precise, accurate grouping.
+    # Group classified questions into a two-level hierarchy:
+    #   category (matching docs.sui.io/develop) → topic (specific feature)
     classified = kapa_analysis.get("classified_questions", [])
 
-    # Normalize topic labels: merge only true duplicates (e.g. different
-    # casing or minor wording variants of the same specific feature).
+    # Normalize topic labels: merge only true duplicates (casing variants).
     raw_topics = [c.get("topic") or c.get("theme", "Other") for c in classified]
     print(f"Normalizing {len(set(raw_topics))} unique topic labels")
     topic_mapping = ClaudePipeline.normalize_topics(raw_topics)
 
-    # Apply normalized names
     for c in classified:
         raw = c.get("topic") or c.get("theme", "Other")
         c["topic"] = topic_mapping.get(raw, raw)
 
-    # Group by normalized topic, sorted by total count descending
-    topic_questions: dict[str, list[dict[str, Any]]] = {}
-    for c in classified:
-        topic_questions.setdefault(c["topic"], []).append(c)
-    topic_questions = dict(
-        sorted(topic_questions.items(), key=lambda kv: len(kv[1]), reverse=True)
-    )
-
-    # Build topic stats for the template (certain/uncertain counts)
-    topic_stats: list[dict[str, Any]] = []
-    for topic_name, qs in topic_questions.items():
-        certain = sum(1 for q in qs if q.get("confidence") == "certain")
-        uncertain = len(qs) - certain
-        topic_stats.append({
-            "name": topic_name,
-            "evidence_count": len(qs),
-            "certain_count": certain,
-            "uncertain_count": uncertain,
-        })
-
-    # Also group by thread_id to detect multi-question conversations
+    # Group by thread_id to detect multi-question conversations
     thread_questions: dict[str, list[dict[str, Any]]] = {}
     for c in classified:
         tid = c.get("thread_id") or ""
@@ -272,10 +250,52 @@ def process_site(
             thread_questions.setdefault(tid, []).append(c)
 
     # Tag each conversation with how many questions are in its thread
-    for qs in topic_questions.values():
-        for c in qs:
-            tid = c.get("thread_id") or ""
-            c["thread_question_count"] = len(thread_questions.get(tid, [])) if tid else 1
+    for c in classified:
+        tid = c.get("thread_id") or ""
+        c["thread_question_count"] = len(thread_questions.get(tid, [])) if tid else 1
+
+    # Build category → topic → questions hierarchy
+    from app.claude_pipeline import DOCS_CATEGORIES
+
+    category_data: list[dict[str, Any]] = []
+    # Group questions by category
+    cat_groups: dict[str, list[dict[str, Any]]] = {}
+    for c in classified:
+        cat = c.get("category", "Other")
+        cat_groups.setdefault(cat, []).append(c)
+
+    # Process categories in the canonical order, then append any extras
+    ordered_cats = [c for c in DOCS_CATEGORIES if c in cat_groups]
+    for cat_name in ordered_cats:
+        cat_qs = cat_groups[cat_name]
+        # Group by topic within this category
+        topic_groups: dict[str, list[dict[str, Any]]] = {}
+        for q in cat_qs:
+            topic_groups.setdefault(q["topic"], []).append(q)
+        # Sort topics by count descending
+        topics_sorted = sorted(topic_groups.items(), key=lambda kv: len(kv[1]), reverse=True)
+
+        topic_list = []
+        for topic_name, tqs in topics_sorted:
+            certain = sum(1 for q in tqs if q.get("confidence") == "certain")
+            uncertain = len(tqs) - certain
+            topic_list.append({
+                "name": topic_name,
+                "evidence_count": len(tqs),
+                "certain_count": certain,
+                "uncertain_count": uncertain,
+                "questions": tqs,
+            })
+
+        cat_certain = sum(t["certain_count"] for t in topic_list)
+        cat_uncertain = sum(t["uncertain_count"] for t in topic_list)
+        category_data.append({
+            "name": cat_name,
+            "evidence_count": len(cat_qs),
+            "certain_count": cat_certain,
+            "uncertain_count": cat_uncertain,
+            "topics": topic_list,
+        })
 
     dump_json(report_dir / f"{site_slug}_plausible_analysis.json", plausible_analysis)
     dump_json(report_dir / f"{site_slug}_kapa_analysis.json", kapa_analysis)
@@ -299,8 +319,7 @@ def process_site(
             "plausible_raw": plausible_raw,
             "kapa_raw": kapa_raw,
             "kapa_user_stats": kapa_user_stats,
-            "topic_questions": topic_questions,
-            "topic_stats": topic_stats,
+            "category_data": category_data,
             "plausible_analysis": plausible_analysis,
             "kapa_analysis": kapa_analysis,
             "final_analysis": final_analysis,
