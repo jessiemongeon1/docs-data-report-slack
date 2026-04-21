@@ -151,7 +151,7 @@ section + section { border-top: 1px solid var(--border); }
     <a href="#top-referrers">Top Referrer URLs</a>
     <a href="#correlations">Page↔Theme</a>
     <a href="#takeaways">Takeaways</a>
-    <a href="#themes">Kapa Themes</a>
+    <a href="#themes">Topics</a>
     <a href="#kapa-users">User Engagement</a>
     <a href="#sprint">Sprint</a>
   </div>
@@ -359,72 +359,93 @@ section + section { border-top: 1px solid var(--border); }
     </div>
   </section>
 
-  {# ── Reusable macro for a theme card with expandable questions ── #}
-  {% macro theme_card(t, loop_index, conversations_dict) %}
-  <div class="thread-card">
-    <div class="thread-meta">
-      <span class="thread-num">#{{ loop_index }}</span>
-      <span class="thread-count">{{ t.evidence_count }} questions</span>
-      <span class="tag">{{ t.priority }} priority</span>
+  {# ── Reusable macro for a single question row ── #}
+  {% macro question_row(q) %}
+  <div style="padding:10px 14px;border:1px solid var(--border);border-radius:6px;font-size:13px;background:var(--surface);">
+    <div style="font-weight:600;color:var(--text);margin-bottom:4px;">
+      Q: {{ q.question }}
     </div>
-    <h4>{{ t.name }}</h4>
-    <p class="summary">{{ t.why_it_matters }}</p>
-
-    {% set questions = conversations_dict.get(t.name, []) if conversations_dict else [] %}
-    {% if questions %}
-    <details style="margin-top:12px;">
-      <summary style="cursor:pointer;font-size:12px;color:var(--text-muted);font-family:var(--font-mono);letter-spacing:0.5px;">
-        Show {{ questions | length }} question{{ 's' if questions | length != 1 else '' }}
-      </summary>
-      <div style="margin-top:8px;display:flex;flex-direction:column;gap:8px;">
-        {% for q in questions %}
-        <div style="padding:10px 14px;border:1px solid var(--border);border-radius:6px;font-size:13px;background:var(--surface);">
-          <div style="font-weight:600;color:var(--text);margin-bottom:4px;">
-            Q: {{ q.question }}
-          </div>
-          <div style="color:var(--text-muted);font-size:12px;">
-            A: {{ q.answer_snippet }}{% if q.answer_snippet | length >= 195 %}…{% endif %}
-          </div>
-          {% if q.thread_id %}
-          <div style="margin-top:6px;">
-            <a href="https://app.kapa.ai/{{ kapa_raw.project_id }}/conversations/{{ q.thread_id }}" target="_blank" rel="noopener"
-               style="font-size:11px;color:var(--accent);text-decoration:none;font-family:var(--font-mono);letter-spacing:0.3px;">
-              View thread &rarr;
-            </a>
-          </div>
-          {% endif %}
-        </div>
-        {% endfor %}
-      </div>
-    </details>
+    <div style="color:var(--text-muted);font-size:12px;">
+      A: {{ q.answer_snippet }}{% if q.answer_snippet | length >= 195 %}…{% endif %}
+    </div>
+    {% if q.thread_id %}
+    <div style="margin-top:6px;">
+      <a href="https://app.kapa.ai/{{ kapa_raw.project_id }}/conversations/{{ q.thread_id }}" target="_blank" rel="noopener"
+         style="font-size:11px;color:var(--accent);text-decoration:none;font-family:var(--font-mono);letter-spacing:0.3px;">
+        View thread &rarr;
+      </a>
+    </div>
     {% endif %}
   </div>
   {% endmacro %}
 
-  {# ── Developer Usage Trends (certain answers) ── #}
-  <section id="usage-themes">
+  {# ── Developer Topics ── #}
+  <section id="themes">
     <div class="section-header">
       <div class="section-label">Kapa</div>
-      <h2 class="section-title">Developer Usage Trends</h2>
-      <p class="section-desc">Topics where the bot provided confident, well-sourced answers — reflecting what developers are actively working on.</p>
+      <h2 class="section-title">Developer Topics</h2>
+      <p class="section-desc">{{ kapa_analysis.summary }} Each topic shows how many questions received confident answers vs uncertain ones.</p>
     </div>
     <div class="thread-list">
-      {% for t in final_analysis.usage_themes %}
-      {{ theme_card(t, loop.index, usage_conversations) }}
-      {% endfor %}
-    </div>
-  </section>
+      {% for t in final_analysis.themes %}
+      {% set questions = theme_conversations.get(t.name, []) if theme_conversations else [] %}
+      {% set uncertain_qs = questions | selectattr("confidence", "equalto", "uncertain") | list %}
+      {% set certain_qs = questions | selectattr("confidence", "equalto", "certain") | list %}
+      <div class="thread-card">
+        <div class="thread-meta">
+          <span class="thread-num">#{{ loop.index }}</span>
+          <span class="thread-count">{{ t.evidence_count }} questions</span>
+          <span class="tag">{{ t.priority }} priority</span>
+        </div>
+        <h4>{{ t.name }}</h4>
+        <p class="summary">{{ t.why_it_matters }}</p>
 
-  {# ── Developer Friction and Potential Gaps (uncertain answers) ── #}
-  <section id="friction-themes">
-    <div class="section-header">
-      <div class="section-label">Kapa</div>
-      <h2 class="section-title">Developer Friction and Potential Gaps</h2>
-      <p class="section-desc">Topics where the bot was uncertain, vague, or could not fully answer — indicating documentation gaps or areas where developers are struggling.</p>
-    </div>
-    <div class="thread-list">
-      {% for t in final_analysis.friction_themes %}
-      {{ theme_card(t, loop.index, friction_conversations) }}
+        {# Confidence breakdown bar #}
+        {% set total = (t.certain_count or 0) + (t.uncertain_count or 0) %}
+        {% if total > 0 %}
+        {% set certain_pct = ((t.certain_count or 0) * 100 / total) | round | int %}
+        {% set uncertain_pct = 100 - certain_pct %}
+        <div style="margin-top:12px;display:flex;align-items:center;gap:12px;">
+          <div style="flex:1;height:6px;border-radius:3px;background:var(--surface-3);overflow:hidden;display:flex;">
+            <div style="width:{{ certain_pct }}%;background:var(--green);"></div>
+            <div style="width:{{ uncertain_pct }}%;background:var(--yellow);"></div>
+          </div>
+          <div style="font-size:11px;font-family:var(--font-mono);color:var(--text-muted);white-space:nowrap;">
+            <span style="color:var(--green);">{{ t.certain_count or 0 }} certain</span>
+            &middot;
+            <span style="color:var(--yellow);">{{ t.uncertain_count or 0 }} uncertain</span>
+          </div>
+        </div>
+        {% endif %}
+
+        {# Uncertain questions — shown prominently for investigation #}
+        {% if uncertain_qs %}
+        <details style="margin-top:14px;" open>
+          <summary style="cursor:pointer;font-size:12px;color:var(--yellow);font-family:var(--font-mono);letter-spacing:0.5px;font-weight:500;">
+            {{ uncertain_qs | length }} uncertain — needs review
+          </summary>
+          <div style="margin-top:8px;display:flex;flex-direction:column;gap:8px;border-left:2px solid var(--yellow);padding-left:12px;">
+            {% for q in uncertain_qs %}
+            {{ question_row(q) }}
+            {% endfor %}
+          </div>
+        </details>
+        {% endif %}
+
+        {# Certain questions — collapsed for spot-checking #}
+        {% if certain_qs %}
+        <details style="margin-top:10px;">
+          <summary style="cursor:pointer;font-size:12px;color:var(--green);font-family:var(--font-mono);letter-spacing:0.5px;font-weight:500;">
+            {{ certain_qs | length }} certain — spot check
+          </summary>
+          <div style="margin-top:8px;display:flex;flex-direction:column;gap:8px;border-left:2px solid var(--green);padding-left:12px;">
+            {% for q in certain_qs %}
+            {{ question_row(q) }}
+            {% endfor %}
+          </div>
+        </details>
+        {% endif %}
+      </div>
       {% endfor %}
     </div>
   </section>
