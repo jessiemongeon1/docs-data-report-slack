@@ -57,7 +57,7 @@
     "type": "section",
     "text": {
       "type": "mrkdwn",
-      "text": "*🧩 Kapa themes*\n{% for t in site.final_analysis.themes %}• *{{ t.name | replace('\n', ' ') }}* — `{{ t.evidence_count }} questions` `{{ t.priority }}`\n{% endfor %}"
+      "text": "*📈 Usage Trends*\n{% for t in site.final_analysis.usage_themes %}• *{{ t.name | replace('\n', ' ') }}* — `{{ t.evidence_count }} questions` `{{ t.priority }}`\n{% endfor %}\n*⚠️ Friction & Gaps*\n{% for t in site.final_analysis.friction_themes %}• *{{ t.name | replace('\n', ' ') }}* — `{{ t.evidence_count }} questions` `{{ t.priority }}`\n{% endfor %}"
     }
   }
   {%- set seen_titles = [] -%}

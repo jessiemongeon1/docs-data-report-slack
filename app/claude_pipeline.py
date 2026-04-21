@@ -31,17 +31,50 @@ For each theme you identify:
 You MUST also return a classified_questions array that maps every question in the chunk to one of your identified theme names. For each question include:
 - theme: the exact name of one of your themes (must match a name in the themes array)
 - index: the zero-based index of the question in the input question_answers array
+- confidence: classify the Kapa bot's answer as "certain" or "uncertain" using the criteria below
+
+CONFIDENCE CLASSIFICATION RULES — apply these strictly:
+
+"certain" means the bot gave a substantive, specific answer grounded in documentation. Indicators:
+- Cites specific pages, code examples, API methods, CLI commands, or configuration values
+- Provides step-by-step instructions or working code snippets
+- References concrete docs content (e.g. "according to the Move documentation…")
+- The answer directly resolves the user's question with actionable information
+
+"uncertain" means the bot's answer is vague, hedged, partially wrong, or acknowledges gaps. Indicators:
+- Uses hedging language: "I'm not sure", "I don't have information", "I couldn't find", "based on my understanding", "it might be", "you may need to check"
+- Gives generic advice instead of specific documentation references ("try checking the docs", "consult the API reference")
+- Acknowledges the topic is not covered: "this isn't documented", "I don't see this in my sources"
+- Provides a partial answer that doesn't fully resolve the question
+- The answer is off-topic, a greeting/pleasantry, or not a real answer
+- The bot suggests the user ask elsewhere or file an issue
+- The answer contradicts itself or provides multiple conflicting options without resolution
+
+When in doubt, classify as "uncertain" — it is better to flag a potentially weak answer than to miss a documentation gap.
 """.strip()
 
 KAPA_SYNTHESIS_SYSTEM = """
 You synthesize multiple chunk-level analyses of raw Kapa question/answer data into one weekly Kapa analysis.
 
+You produce TWO separate theme lists from the chunk analyses:
+
+1. usage_themes — "Developer Usage Trends": themes from questions where the bot gave confident, well-sourced answers. These represent what developers are actively working on and successfully finding answers for. Group by the topic or feature area developers are using (e.g. "Token and Coin Operations", "Object Ownership Patterns"). Focus on identifying what parts of the platform see the most developer activity.
+
+2. friction_themes — "Developer Friction and Potential Gaps": themes from questions where the bot was uncertain, vague, or could not fully answer. These represent documentation gaps, missing features, or areas where developers are struggling. Group by the pain point or gap (e.g. "Missing Migration Guides", "Unclear Error Messages"). Focus on what is broken, missing, or confusing.
+
+Each chunk analysis contains a classified_questions array where each question has a "confidence" field ("certain" or "uncertain"). Use this to determine which list a theme belongs to:
+- Count the certain vs uncertain questions per theme across all chunks.
+- If a theme has more "certain" questions, put it in usage_themes.
+- If a theme has more "uncertain" questions, put it in friction_themes.
+- Re-group and rename themes as needed to produce coherent, well-scoped topics for each list.
+
 Rules:
 - Sum evidence_count values across chunks when merging the same theme.
-- Report the exact total question count (sum of all evidence_counts across all themes).
-- Merge repeated themes; do not duplicate them.
+- Report the exact total question count (sum of all evidence_counts across all themes in both lists).
+- Merge repeated themes within each list; do not duplicate them.
+- A theme should NOT appear in both lists.
 - Prefer recurring issues over one-off issues.
-- Return at most 7 themes total.
+- Return at most 7 usage_themes and at most 7 friction_themes.
 - summary: 2 sentences max.
 - insight and recommended_action: 1 sentence each, under 20 words.
 """.strip()
@@ -52,7 +85,8 @@ You synthesize Plausible analytics and Kapa Q&A analyses into a weekly docs repo
 SECTION RESPONSIBILITIES — each piece of information appears in exactly one place:
 - executive_summary: high-level numbers and a 2-sentence summary only. No action lists.
 - notable_takeaways: the 5 most surprising or high-impact cross-signal observations (Plausible + Kapa together). Each takeaway must contain a specific metric or count not already stated elsewhere. Do NOT restate theme names or sprint titles here.
-- themes: Kapa pain points only — what developers are struggling with and why it matters. No recommended actions here; those go in sprint_recommendations.
+- usage_themes: "Developer Usage Trends" — what developers are actively working on and successfully finding answers for. These come from questions where Kapa gave confident answers. No recommended actions here.
+- friction_themes: "Developer Friction and Potential Gaps" — what developers are struggling with, where docs are missing, or where the bot couldn't help. These come from questions where Kapa was uncertain. No recommended actions here; those go in sprint_recommendations.
 - page_theme_correlations: traffic/behavior signal from Plausible mapped to a Kapa theme. One insight per row, nowhere else.
 - sprint_recommendations: the concrete work to do. Title must differ from theme names and takeaway titles. Each item is self-contained; do not reference or repeat evidence already in takeaways or themes.
 - chatbot_referrals: AI referral sources only; no overlap with other sections.
@@ -61,7 +95,8 @@ Output limits — strictly enforce these:
 - executive_summary.summary: 2 sentences max.
 - page_theme_correlations: at most 8 items. insight: 1 sentence, under 15 words.
 - notable_takeaways: at most 4 items. evidence: exact metric/count only (no prose). interpretation: 1 sentence. recommended_action: omit — actions go in sprint_recommendations only.
-- themes: at most 6 items. why_it_matters: 1 sentence, under 20 words. recommended_doc_action: omit — actions go in sprint_recommendations only.
+- usage_themes: at most 6 items. why_it_matters: 1 sentence, under 20 words.
+- friction_themes: at most 6 items. why_it_matters: 1 sentence, under 20 words. recommended_doc_action: omit — actions go in sprint_recommendations only.
 - sprint_recommendations: exactly 7 items total, distributed as follows:
     - At least 3 documentation_action items
     - At least 2 tooling_action items
@@ -79,7 +114,7 @@ Content rules:
 - CRITICAL: You MUST include at least 2 tooling_action and at least 2 developer_experience_action items. If you cannot find strong signals, look harder at the Kapa questions — every developer pain point implies either a tool that could work better (tooling_action) or a tool that should exist but does not (developer_experience_action). Think about what an SDK, CLI, or framework engineer would want to know from this data.
 - tooling_action and developer_experience_action must ONLY contain recommendations that require engineering work (code changes to tools, SDKs, CLIs, frameworks, or APIs). They must NEVER contain documentation changes, content rewrites, or improvements to third-party services like Kapa.ai.
 - Each sprint recommendation must belong to exactly one category. Do not duplicate the same recommendation across categories.
-- If you find yourself writing the same finding in two sections, delete it from the lower-priority section. Priority order: sprint_recommendations > notable_takeaways > themes > executive_summary.
+- If you find yourself writing the same finding in two sections, delete it from the lower-priority section. Priority order: sprint_recommendations > notable_takeaways > usage_themes/friction_themes > executive_summary.
 """.strip()
 
 
@@ -167,13 +202,29 @@ KAPA_CHUNK_SCHEMA = {
                 "properties": {
                     "theme": {"type": "string"},
                     "index": {"type": "integer"},
+                    "confidence": {
+                        "type": "string",
+                        "enum": ["certain", "uncertain"],
+                    },
                 },
-                "required": ["theme", "index"],
+                "required": ["theme", "index", "confidence"],
                 "additionalProperties": False,
             },
         },
     },
     "required": ["chunk_summary", "themes", "classified_questions"],
+    "additionalProperties": False,
+}
+
+_THEME_ITEM_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "name": {"type": "string"},
+        "evidence_count": {"type": "integer"},
+        "insight": {"type": "string"},
+        "recommended_action": {"type": "string"},
+    },
+    "required": ["name", "evidence_count", "insight", "recommended_action"],
     "additionalProperties": False,
 }
 
@@ -183,22 +234,16 @@ KAPA_SYNTHESIS_SCHEMA = {
         "summary": {"type": "string"},
         "total_questions": {"type": "integer"},
         "total_themes": {"type": "integer"},
-        "themes": {
+        "usage_themes": {
             "type": "array",
-            "items": {
-                "type": "object",
-                "properties": {
-                    "name": {"type": "string"},
-                    "evidence_count": {"type": "integer"},
-                    "insight": {"type": "string"},
-                    "recommended_action": {"type": "string"},
-                },
-                "required": ["name", "evidence_count", "insight", "recommended_action"],
-                "additionalProperties": False,
-            },
+            "items": _THEME_ITEM_SCHEMA,
+        },
+        "friction_themes": {
+            "type": "array",
+            "items": _THEME_ITEM_SCHEMA,
         },
     },
-    "required": ["summary", "total_questions", "total_themes", "themes"],
+    "required": ["summary", "total_questions", "total_themes", "usage_themes", "friction_themes"],
     "additionalProperties": False,
 }
 
@@ -266,7 +311,29 @@ FINAL_SCHEMA = {
                 "additionalProperties": False,
             },
         },
-        "themes": {
+        "usage_themes": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "name": {"type": "string"},
+                    "evidence_count": {"type": "integer"},
+                    "why_it_matters": {"type": "string"},
+                    "priority": {
+                        "type": "string",
+                        "enum": ["high", "medium", "low"],
+                    },
+                },
+                "required": [
+                    "name",
+                    "evidence_count",
+                    "why_it_matters",
+                    "priority",
+                ],
+                "additionalProperties": False,
+            },
+        },
+        "friction_themes": {
             "type": "array",
             "items": {
                 "type": "object",
@@ -327,7 +394,8 @@ FINAL_SCHEMA = {
         "page_theme_correlations",
         "chatbot_referrals",
         "notable_takeaways",
-        "themes",
+        "usage_themes",
+        "friction_themes",
         "sprint_recommendations",
     ],
     "additionalProperties": False,
@@ -455,17 +523,6 @@ class ClaudePipeline:
         )
 
     def analyze_kapa_raw(self, kapa_raw: dict[str, Any]) -> dict[str, Any]:
-        initial_payload = {"source": "kapa", "raw": kapa_raw}
-        initial_tokens = self._estimate_tokens(initial_payload)
-
-        if initial_tokens <= self.max_input_tokens:
-            return self._structured_json(
-                system_prompt=KAPA_SYNTHESIS_SYSTEM,
-                payload=initial_payload,
-                schema=KAPA_SYNTHESIS_SCHEMA,
-                max_tokens=8000,
-            )
-
         qa_items = self._normalize_qa_items(kapa_raw.get("question_answers", []))
 
         # Use most of the model's input budget per chunk so we don't make
@@ -495,7 +552,8 @@ class ClaudePipeline:
                 f"Inspect the Kapa raw payload or raise max_chunks if intentional."
             )
 
-        print(f"Kapa estimated tokens: {initial_tokens}")
+        estimated_tokens = self._estimate_tokens({"source": "kapa", "raw": kapa_raw})
+        print(f"Kapa estimated tokens: {estimated_tokens}")
         print(f"Kapa target tokens per chunk: {target_tokens}")
         print(f"Kapa chunk count: {len(chunks)}")
 
@@ -522,6 +580,7 @@ class ClaudePipeline:
                         "question": (item.get("question") or "")[:300],
                         "answer_snippet": (item.get("answer") or "")[:200],
                         "thread_id": item.get("thread_id"),
+                        "confidence": cc.get("confidence", "uncertain"),
                     })
 
         synthesis = self._structured_json(

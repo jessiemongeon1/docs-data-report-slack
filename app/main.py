@@ -229,12 +229,12 @@ def process_site(
             )
             print(f"Fact-checked {checked_count}/{len(recommendations)} recommendations")
 
-    # Pre-group classified conversations by final theme name. Uses best-match
-    # logic: exact match first, then substring containment, then assign to
-    # closest theme. Unmatched conversations go into the most similar theme.
+    # Split classified questions by confidence, then group each set by its
+    # corresponding final themes (usage_themes for certain, friction_themes
+    # for uncertain).
     classified = kapa_analysis.get("classified_questions", [])
-    final_themes = [t["name"] for t in final_analysis.get("themes", [])]
-    theme_conversations: dict[str, list[dict[str, Any]]] = {t: [] for t in final_themes}
+    certain_qs = [c for c in classified if c.get("confidence") == "certain"]
+    uncertain_qs = [c for c in classified if c.get("confidence") != "certain"]
 
     # Also group by thread_id to detect multi-question conversations
     thread_questions: dict[str, list[dict[str, Any]]] = {}
@@ -243,39 +243,52 @@ def process_site(
         if tid:
             thread_questions.setdefault(tid, []).append(c)
 
-    for c in classified:
-        chunk_theme = c.get("theme", "").lower()
-        matched = False
-        # Exact match
-        for ft in final_themes:
-            if ft.lower() == chunk_theme:
-                theme_conversations[ft].append(c)
-                matched = True
-                break
-        if matched:
-            continue
-        # Substring match (chunk theme contains final theme or vice versa)
-        for ft in final_themes:
-            if ft.lower() in chunk_theme or chunk_theme in ft.lower():
-                theme_conversations[ft].append(c)
-                matched = True
-                break
-        if matched:
-            continue
-        # Word-overlap match: pick the final theme sharing the most words
-        chunk_words = set(chunk_theme.split())
-        best_theme = final_themes[0] if final_themes else None
-        best_overlap = 0
-        for ft in final_themes:
-            overlap = len(chunk_words & set(ft.lower().split()))
-            if overlap > best_overlap:
-                best_overlap = overlap
-                best_theme = ft
-        if best_theme:
-            theme_conversations[best_theme].append(c)
+    def _match_to_themes(
+        questions: list[dict[str, Any]],
+        theme_names: list[str],
+    ) -> dict[str, list[dict[str, Any]]]:
+        """Match classified questions to final theme names using best-match logic."""
+        grouped: dict[str, list[dict[str, Any]]] = {t: [] for t in theme_names}
+        for c in questions:
+            chunk_theme = c.get("theme", "").lower()
+            matched = False
+            # Exact match
+            for ft in theme_names:
+                if ft.lower() == chunk_theme:
+                    grouped[ft].append(c)
+                    matched = True
+                    break
+            if matched:
+                continue
+            # Substring match
+            for ft in theme_names:
+                if ft.lower() in chunk_theme or chunk_theme in ft.lower():
+                    grouped[ft].append(c)
+                    matched = True
+                    break
+            if matched:
+                continue
+            # Word-overlap match
+            chunk_words = set(chunk_theme.split())
+            best_theme = theme_names[0] if theme_names else None
+            best_overlap = 0
+            for ft in theme_names:
+                overlap = len(chunk_words & set(ft.lower().split()))
+                if overlap > best_overlap:
+                    best_overlap = overlap
+                    best_theme = ft
+            if best_theme:
+                grouped[best_theme].append(c)
+        return grouped
+
+    usage_theme_names = [t["name"] for t in final_analysis.get("usage_themes", [])]
+    friction_theme_names = [t["name"] for t in final_analysis.get("friction_themes", [])]
+
+    usage_conversations = _match_to_themes(certain_qs, usage_theme_names)
+    friction_conversations = _match_to_themes(uncertain_qs, friction_theme_names)
 
     # Tag each conversation with how many questions are in its thread
-    for theme_name, convos in theme_conversations.items():
+    for convos in list(usage_conversations.values()) + list(friction_conversations.values()):
         for c in convos:
             tid = c.get("thread_id") or ""
             c["thread_question_count"] = len(thread_questions.get(tid, [])) if tid else 1
@@ -302,7 +315,8 @@ def process_site(
             "plausible_raw": plausible_raw,
             "kapa_raw": kapa_raw,
             "kapa_user_stats": kapa_user_stats,
-            "theme_conversations": theme_conversations,
+            "usage_conversations": usage_conversations,
+            "friction_conversations": friction_conversations,
             "plausible_analysis": plausible_analysis,
             "kapa_analysis": kapa_analysis,
             "final_analysis": final_analysis,
@@ -431,16 +445,28 @@ def run() -> None:
         )
         site_reports.append(site_report)
 
-    index_html = render_html(
-        Path("templates"),
-        "index.html.j2",
-        {
-            "run_id": run_id,
-            "start_date": start_date,
-            "end_date": end_date,
-            "site_reports": site_reports,
-        },
-    )
+    # Collect previous runs for the archive index.
+    past_runs: list[dict[str, Any]] = []
+    for run_dir in sorted(settings.site_output_dir.iterdir(), reverse=True):
+        if not run_dir.is_dir() or run_dir.name in ("latest",):
+            continue
+        site_htmls = sorted(f.name for f in run_dir.glob("*.html") if f.name != "index.html")
+        if not site_htmls:
+            continue
+        past_runs.append({
+            "run_id": run_dir.name,
+            "reports": [{"filename": f, "slug": f.removesuffix(".html")} for f in site_htmls],
+        })
+
+    index_context = {
+        "run_id": run_id,
+        "start_date": start_date,
+        "end_date": end_date,
+        "site_reports": site_reports,
+        "past_runs": past_runs,
+    }
+
+    index_html = render_html(Path("templates"), "index.html.j2", index_context)
 
     (reports_dir / "index.html").write_text(index_html, encoding="utf-8")
     (settings.site_output_dir / "index.html").write_text(index_html, encoding="utf-8")
