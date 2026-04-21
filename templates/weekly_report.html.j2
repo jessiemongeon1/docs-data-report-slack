@@ -393,6 +393,14 @@ section + section { border-top: 1px solid var(--border); }
               <div style="color:var(--text-muted);font-size:12px;">
                 A: {{ q.answer_snippet }}{% if q.answer_snippet | length >= 195 %}…{% endif %}
               </div>
+              {% if q.thread_id %}
+              <div style="margin-top:6px;">
+                <a href="https://app.kapa.ai/threads/{{ q.thread_id }}" target="_blank" rel="noopener"
+                   style="font-size:11px;color:var(--accent);text-decoration:none;font-family:var(--font-mono);letter-spacing:0.3px;">
+                  View thread &rarr;
+                </a>
+              </div>
+              {% endif %}
             </div>
             {% endfor %}
           </div>

@@ -54,7 +54,7 @@ class Settings:
 
     @staticmethod
     def from_env() -> "Settings":
-        global_webhook = os.environ["SLACK_WEBHOOK_URL"]
+        global_webhook = os.environ.get("SLACK_WEBHOOK_URL", "")
 
         sites_json = os.environ["SITES_JSON"]
         parsed_sites = json.loads(sites_json)

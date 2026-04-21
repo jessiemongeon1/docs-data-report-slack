@@ -449,26 +449,29 @@ def run() -> None:
     (latest_dir / "index.html").write_text(index_html, encoding="utf-8")
 
     # Send a separate Slack notification to each site's webhook.
-    for site_report in site_reports:
-        slack_blocks_raw = render_html(
-            Path("templates"),
-            "slack_summary.json.j2",
-            {
-                "start_date": start_date,
-                "end_date": end_date,
-                "run_id": run_id,
-                # Pass only this site's report so the template renders one site.
-                "site_reports": [site_report],
-            },
-        )
-        slack_blocks = json.loads(slack_blocks_raw)
-
-        for webhook_url in site_report["slack_webhook_urls"]:
-            notifier = SlackNotifier(webhook_url)
-            notifier.send(
-                text=f"Weekly docs analytics: {site_report['site_name']} ({start_date} to {end_date})",
-                blocks=slack_blocks,
+    if os.getenv("SKIP_SLACK", "").lower() in ("1", "true", "yes"):
+        print("SKIP_SLACK is set — skipping Slack notifications")
+    else:
+        for site_report in site_reports:
+            slack_blocks_raw = render_html(
+                Path("templates"),
+                "slack_summary.json.j2",
+                {
+                    "start_date": start_date,
+                    "end_date": end_date,
+                    "run_id": run_id,
+                    # Pass only this site's report so the template renders one site.
+                    "site_reports": [site_report],
+                },
             )
+            slack_blocks = json.loads(slack_blocks_raw)
+
+            for webhook_url in site_report["slack_webhook_urls"]:
+                notifier = SlackNotifier(webhook_url)
+                notifier.send(
+                    text=f"Weekly docs analytics: {site_report['site_name']} ({start_date} to {end_date})",
+                    blocks=slack_blocks,
+                )
 
     print(f"Saved raw data under {raw_dir}")
     print(f"Saved analyses under {analysis_dir}")

@@ -1,0 +1,101 @@
+name: Generate Full Report (No Slack)
+
+on:
+  workflow_dispatch:
+    inputs:
+      report_days:
+        description: "Number of days to include in the report"
+        required: false
+        default: "7"
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+concurrency:
+  group: generate-full-report
+  cancel-in-progress: false
+
+jobs:
+  generate-report:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v5
+        with:
+          persist-credentials: true
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Generate report
+        run: python -m app.main
+        env:
+          PLAUSIBLE_API_KEY: ${{ secrets.PLAUSIBLE_API_KEY }}
+          KAPA_API_KEY_SUI: ${{ secrets.KAPA_API_KEY_SUI }}
+          KAPA_API_KEY_WALRUS: ${{ secrets.KAPA_API_KEY_WALRUS }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          SLACK_WEBHOOK_URL: ""
+          SKIP_SLACK: "true"
+          SITES_JSON: ${{ secrets.SITES_JSON }}
+          CLAUDE_MAX_INPUT_TOKENS: "120000"
+          REPORT_DAYS: ${{ inputs.report_days }}
+          REFERRER_ALLOWLIST: "sui.io,walrus.xyz,claude.ai,chatgpt.com,gemini.google.com"
+          REFERRER_DENYLIST: "docs.sui.io,docs.wal.app"
+
+      - name: Show generated files
+        run: |
+          echo "Reports directory:"
+          ls -R reports || true
+          echo "Artifacts directory:"
+          ls -R artifacts || true
+
+      - name: Upload HTML reports artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: full-html-reports
+          path: reports
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Commit reports to repository
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git add reports
+
+          if git diff --cached --quiet; then
+            echo "No report changes to commit"
+            exit 0
+          fi
+
+          git commit -m "Add weekly reports for ${GITHUB_RUN_ID}"
+          git push
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: reports
+
+  deploy-pages:
+    needs: generate-report
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
