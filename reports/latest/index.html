@@ -1,29 +1,418 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="utf-8">
-  <title>Weekly docs analytics index</title>
-  <style>
-    body { font-family: Arial, sans-serif; margin: 40px; color: #1f2937; }
-    .card { border: 1px solid #e5e7eb; border-radius: 8px; padding: 16px; margin: 16px 0; }
-    a { color: #2563eb; }
-  </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Docs Analytics Reports</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=JetBrains+Mono:wght@400;500&family=Fraunces:opsz,wght@9..144,300;9..144,500;9..144,700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #0c0f14;
+  --surface: #141820;
+  --surface-2: #1a1f2a;
+  --surface-3: #222836;
+  --border: #2a3040;
+  --border-light: #353d50;
+  --text: #e2e6ef;
+  --text-muted: #8891a5;
+  --text-dim: #5c6478;
+  --accent: #4da2ff;
+  --accent-dim: rgba(77,162,255,0.12);
+  --green: #3dd68c;
+  --green-dim: rgba(61,214,140,0.12);
+  --radius: 10px;
+  --radius-sm: 6px;
+  --font: 'DM Sans', -apple-system, sans-serif;
+  --font-display: 'Fraunces', Georgia, serif;
+  --font-mono: 'JetBrains Mono', monospace;
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: var(--font); background: var(--bg); color: var(--text); line-height: 1.6; -webkit-font-smoothing: antialiased; }
+
+.hero { padding: 80px 40px 60px; text-align: center; position: relative; overflow: hidden; border-bottom: 1px solid var(--border); }
+.hero::before { content: ''; position: absolute; top: -200px; left: 50%; transform: translateX(-50%); width: 800px; height: 800px; background: radial-gradient(circle, rgba(77,162,255,0.08) 0%, transparent 70%); pointer-events: none; }
+.hero-label { display: inline-block; font-family: var(--font-mono); font-size: 11px; letter-spacing: 2px; text-transform: uppercase; color: var(--accent); background: var(--accent-dim); padding: 6px 16px; border-radius: 20px; margin-bottom: 24px; }
+.hero h1 { font-family: var(--font-display); font-size: clamp(32px,5vw,56px); font-weight: 700; letter-spacing: -1px; line-height: 1.15; margin-bottom: 12px; }
+.hero h1 span { color: var(--accent); }
+.hero .subtitle { font-size: 17px; color: var(--text-muted); font-weight: 400; }
+
+.container { max-width: 1200px; margin: 0 auto; padding: 0 24px; }
+section { padding: 56px 0; }
+section + section { border-top: 1px solid var(--border); }
+.section-header { margin-bottom: 36px; }
+.section-label { font-family: var(--font-mono); font-size: 11px; letter-spacing: 2px; text-transform: uppercase; color: var(--accent); margin-bottom: 8px; }
+.section-title { font-family: var(--font-display); font-size: clamp(24px,3.5vw,36px); font-weight: 500; letter-spacing: -0.5px; }
+.section-desc { color: var(--text-muted); margin-top: 8px; font-size: 15px; max-width: 600px; }
+
+.site-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 16px; }
+.site-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 28px; transition: border-color 0.2s; }
+.site-card:hover { border-color: var(--border-light); }
+.site-card h3 { font-size: 18px; font-weight: 600; margin-bottom: 10px; }
+.site-card p { font-size: 14px; color: var(--text-muted); line-height: 1.65; margin-bottom: 16px; }
+.site-card .btn { display: inline-block; font-size: 13px; font-weight: 600; color: var(--accent); background: var(--accent-dim); padding: 8px 20px; border-radius: var(--radius-sm); text-decoration: none; transition: background 0.2s; }
+.site-card .btn:hover { background: rgba(77,162,255,0.2); }
+
+.archive-table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+.archive-table th { background: var(--surface); color: var(--text-muted); font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 1px; padding: 12px 16px; text-align: left; border-bottom: 1px solid var(--border); font-family: var(--font-mono); }
+.archive-table td { padding: 12px 16px; border-bottom: 1px solid var(--border); color: var(--text); vertical-align: middle; }
+.archive-table tr:last-child td { border-bottom: none; }
+.archive-table tr:hover td { background: var(--surface-2); }
+.archive-table a { color: var(--accent); text-decoration: none; font-size: 12px; font-family: var(--font-mono); }
+.archive-table a:hover { text-decoration: underline; }
+.run-id { font-family: var(--font-mono); font-size: 12px; color: var(--text-dim); }
+.current-badge { display: inline-block; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; padding: 2px 8px; border-radius: 4px; background: var(--green-dim); color: var(--green); margin-left: 8px; vertical-align: middle; }
+.report-links { display: flex; gap: 12px; flex-wrap: wrap; }
+
+@media (max-width: 640px) { .hero { padding: 48px 20px 40px; } .site-grid { grid-template-columns: 1fr; } }
+</style>
 </head>
 <body>
-  <h1>Weekly docs analytics index</h1>
-  <p>2026-04-14 to 2026-04-20 · run 20260421T144331Z</p>
+
+<header class="hero">
+  <div class="hero-label">Docs Analytics</div>
+  <h1>Weekly <span>Reports</span></h1>
+  <p class="subtitle">2026-04-14 to 2026-04-20 · Run 20260421T153928Z</p>
+</header>
+
+<div class="container">
+
   
-  <div class="card">
-    <h2>docs.sui.io</h2>
-    <p>Move smart contract development and gRPC/GraphQL API migration are the dominant developer pain points this week, driven by 229 and 187 Kapa questions respectively, while onboarding funnel pages dominate site traffic indicating strong new-developer acquisition activity. Dual URL fragmentation for installation docs and a looming JSON-RPC deprecation deadline create urgent consolidation and migration opportunities.</p>
-    <p><a href="docs-sui-io.html">Open full report</a></p>
-  </div>
+  <section id="latest">
+    <div class="section-header">
+      <div class="section-label">Latest</div>
+      <h2 class="section-title">Current Reports</h2>
+      <p class="section-desc">Most recent report for each tracked site.</p>
+    </div>
+    <div class="site-grid">
+      
+      <div class="site-card">
+        <h3>docs.sui.io</h3>
+        <p>Move smart contract development and gRPC/GraphQL API usage dominate developer activity this week, with 627 Kapa questions spanning 9 themes and strong onboarding traffic on docs.sui.io. Key friction areas are NFT/Kiosk standards and advanced Move patterns, where the bot frequently returned uncertain answers indicating documentation gaps.</p>
+        <a class="btn" href="latest/docs-sui-io.html">Open full report &rarr;</a>
+      </div>
+      
+      <div class="site-card">
+        <h3>docs.wal.app</h3>
+        <p>Walrus docs received 13,777 visitors and 22,169 pageviews this week, with blob storage and Walrus Sites dominating both page traffic and chatbot questions. A high 80% bounce rate and 55 spam/off-topic Kapa queries signal quality gaps in both site engagement and chatbot filtering.</p>
+        <a class="btn" href="latest/docs-wal-app.html">Open full report &rarr;</a>
+      </div>
+      
+    </div>
+  </section>
+
   
-  <div class="card">
-    <h2>docs.wal.app</h2>
-    <p>Blob storage operations and Walrus Sites deployment dominate developer questions, while a 15.7% spam/off-topic query rate degrades chatbot utility and inflates support volume. Duplicate URL canonicalization issues and a widening bounce-rate gap signal addressable friction in both discovery and onboarding.</p>
-    <p><a href="docs-wal-app.html">Open full report</a></p>
-  </div>
   
+  <section id="archive">
+    <div class="section-header">
+      <div class="section-label">Archive</div>
+      <h2 class="section-title">Previous Reports</h2>
+      <p class="section-desc">All previously generated report runs.</p>
+    </div>
+    <div style="overflow-x:auto;">
+      <table class="archive-table">
+        <thead>
+          <tr>
+            <th>Run</th>
+            <th>Reports</th>
+          </tr>
+        </thead>
+        <tbody>
+          
+          <tr>
+            <td>
+              <span class="run-id">20260421T153928Z</span>
+              <span class="current-badge">current</span>
+            </td>
+            <td>
+              <div class="report-links">
+                
+                <a href="20260421T153928Z/docs-sui-io.html">docs-sui-io</a>
+                
+                <a href="20260421T153928Z/docs-wal-app.html">docs-wal-app</a>
+                
+              </div>
+            </td>
+          </tr>
+          
+          <tr>
+            <td>
+              <span class="run-id">20260421T144331Z</span>
+              
+            </td>
+            <td>
+              <div class="report-links">
+                
+                <a href="20260421T144331Z/docs-sui-io.html">docs-sui-io</a>
+                
+                <a href="20260421T144331Z/docs-wal-app.html">docs-wal-app</a>
+                
+              </div>
+            </td>
+          </tr>
+          
+          <tr>
+            <td>
+              <span class="run-id">20260421T143024Z</span>
+              
+            </td>
+            <td>
+              <div class="report-links">
+                
+                <a href="20260421T143024Z/docs-sui-io.html">docs-sui-io</a>
+                
+                <a href="20260421T143024Z/docs-wal-app.html">docs-wal-app</a>
+                
+              </div>
+            </td>
+          </tr>
+          
+          <tr>
+            <td>
+              <span class="run-id">20260420T151926Z</span>
+              
+            </td>
+            <td>
+              <div class="report-links">
+                
+                <a href="20260420T151926Z/docs-sui-io.html">docs-sui-io</a>
+                
+                <a href="20260420T151926Z/docs-wal-app.html">docs-wal-app</a>
+                
+              </div>
+            </td>
+          </tr>
+          
+          <tr>
+            <td>
+              <span class="run-id">20260417T164636Z</span>
+              
+            </td>
+            <td>
+              <div class="report-links">
+                
+                <a href="20260417T164636Z/docs-sui-io.html">docs-sui-io</a>
+                
+                <a href="20260417T164636Z/docs-wal-app.html">docs-wal-app</a>
+                
+              </div>
+            </td>
+          </tr>
+          
+          <tr>
+            <td>
+              <span class="run-id">20260417T162656Z</span>
+              
+            </td>
+            <td>
+              <div class="report-links">
+                
+                <a href="20260417T162656Z/docs-sui-io.html">docs-sui-io</a>
+                
+                <a href="20260417T162656Z/docs-wal-app.html">docs-wal-app</a>
+                
+              </div>
+            </td>
+          </tr>
+          
+          <tr>
+            <td>
+              <span class="run-id">20260417T155300Z</span>
+              
+            </td>
+            <td>
+              <div class="report-links">
+                
+                <a href="20260417T155300Z/docs-sui-io.html">docs-sui-io</a>
+                
+                <a href="20260417T155300Z/docs-wal-app.html">docs-wal-app</a>
+                
+              </div>
+            </td>
+          </tr>
+          
+          <tr>
+            <td>
+              <span class="run-id">20260417T153316Z</span>
+              
+            </td>
+            <td>
+              <div class="report-links">
+                
+                <a href="20260417T153316Z/docs-sui-io.html">docs-sui-io</a>
+                
+                <a href="20260417T153316Z/docs-wal-app.html">docs-wal-app</a>
+                
+              </div>
+            </td>
+          </tr>
+          
+          <tr>
+            <td>
+              <span class="run-id">20260417T150709Z</span>
+              
+            </td>
+            <td>
+              <div class="report-links">
+                
+                <a href="20260417T150709Z/docs-sui-io.html">docs-sui-io</a>
+                
+                <a href="20260417T150709Z/docs-wal-app.html">docs-wal-app</a>
+                
+              </div>
+            </td>
+          </tr>
+          
+          <tr>
+            <td>
+              <span class="run-id">20260417T143421Z</span>
+              
+            </td>
+            <td>
+              <div class="report-links">
+                
+                <a href="20260417T143421Z/docs-sui-io.html">docs-sui-io</a>
+                
+                <a href="20260417T143421Z/docs-wal-app.html">docs-wal-app</a>
+                
+              </div>
+            </td>
+          </tr>
+          
+          <tr>
+            <td>
+              <span class="run-id">20260416T205418Z</span>
+              
+            </td>
+            <td>
+              <div class="report-links">
+                
+                <a href="20260416T205418Z/docs-sui-io.html">docs-sui-io</a>
+                
+                <a href="20260416T205418Z/docs-wal-app.html">docs-wal-app</a>
+                
+              </div>
+            </td>
+          </tr>
+          
+          <tr>
+            <td>
+              <span class="run-id">20260416T204220Z</span>
+              
+            </td>
+            <td>
+              <div class="report-links">
+                
+                <a href="20260416T204220Z/docs-sui-io.html">docs-sui-io</a>
+                
+                <a href="20260416T204220Z/docs-wal-app.html">docs-wal-app</a>
+                
+              </div>
+            </td>
+          </tr>
+          
+          <tr>
+            <td>
+              <span class="run-id">20260416T202350Z</span>
+              
+            </td>
+            <td>
+              <div class="report-links">
+                
+                <a href="20260416T202350Z/docs-sui-io.html">docs-sui-io</a>
+                
+                <a href="20260416T202350Z/docs-wal-app.html">docs-wal-app</a>
+                
+              </div>
+            </td>
+          </tr>
+          
+          <tr>
+            <td>
+              <span class="run-id">20260416T195332Z</span>
+              
+            </td>
+            <td>
+              <div class="report-links">
+                
+                <a href="20260416T195332Z/docs-sui-io.html">docs-sui-io</a>
+                
+                <a href="20260416T195332Z/docs-wal-app.html">docs-wal-app</a>
+                
+              </div>
+            </td>
+          </tr>
+          
+          <tr>
+            <td>
+              <span class="run-id">20260416T193647Z</span>
+              
+            </td>
+            <td>
+              <div class="report-links">
+                
+                <a href="20260416T193647Z/docs-sui-io.html">docs-sui-io</a>
+                
+                <a href="20260416T193647Z/docs-wal-app.html">docs-wal-app</a>
+                
+              </div>
+            </td>
+          </tr>
+          
+          <tr>
+            <td>
+              <span class="run-id">20260416T183358Z</span>
+              
+            </td>
+            <td>
+              <div class="report-links">
+                
+                <a href="20260416T183358Z/docs-sui-io.html">docs-sui-io</a>
+                
+                <a href="20260416T183358Z/docs-wal-app.html">docs-wal-app</a>
+                
+              </div>
+            </td>
+          </tr>
+          
+          <tr>
+            <td>
+              <span class="run-id">20260416T144633Z</span>
+              
+            </td>
+            <td>
+              <div class="report-links">
+                
+                <a href="20260416T144633Z/docs-sui-io.html">docs-sui-io</a>
+                
+                <a href="20260416T144633Z/docs-wal-app.html">docs-wal-app</a>
+                
+              </div>
+            </td>
+          </tr>
+          
+          <tr>
+            <td>
+              <span class="run-id">20260416T013807Z</span>
+              
+            </td>
+            <td>
+              <div class="report-links">
+                
+                <a href="20260416T013807Z/docs-sui-io.html">docs-sui-io</a>
+                
+                <a href="20260416T013807Z/docs-wal-app.html">docs-wal-app</a>
+                
+              </div>
+            </td>
+          </tr>
+          
+        </tbody>
+      </table>
+    </div>
+  </section>
+  
+
+</div>
+
 </body>
 </html>
