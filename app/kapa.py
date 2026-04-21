@@ -112,6 +112,7 @@ class KapaClient:
                     "answer": answer,
                     "timestamp": item.get("created_at") or item.get("timestamp"),
                     "thread_id": item.get("thread_id"),
+                    "is_uncertain": bool(item.get("is_uncertain")),
                     "conversation_id": (
                         item.get("conversation_id")
                         or item.get("thread_id")

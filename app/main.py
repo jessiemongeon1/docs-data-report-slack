@@ -237,7 +237,7 @@ def process_site(
     # casing or minor wording variants of the same specific feature).
     raw_topics = [c.get("topic") or c.get("theme", "Other") for c in classified]
     print(f"Normalizing {len(set(raw_topics))} unique topic labels")
-    topic_mapping = claude.normalize_topics(raw_topics)
+    topic_mapping = ClaudePipeline.normalize_topics(raw_topics)
 
     # Apply normalized names
     for c in classified:

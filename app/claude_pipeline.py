@@ -29,34 +29,16 @@ For each theme you identify:
 - insight and recommended_action: 1 sentence each, under 20 words.
 
 You MUST also return a classified_questions array that maps every question in the chunk. For each question include:
-- topic: a SHORT, SPECIFIC label for what this individual question is about. This is PER-QUESTION, not per-theme.
-  RULES for topic labels:
-  - Name the specific feature, API, tool, or concept: "PTB splitCoins", "Move generic type constraints", "Kiosk transfer policies", "gRPC getCheckpoint", "GraphQL pagination"
-  - Do NOT use broad/vague labels: "SDK Issues", "Transaction Errors", "Move Development", "Getting Started", "General Questions"
-  - Two questions should only share a topic label if they are genuinely about the same specific thing
-  - The topic label does NOT need to match any theme name — themes are for high-level summary, topic labels are for precise per-question grouping
+- topic: a label for the specific feature, API, or concept area this question is about.
+  RULES:
+  - Be specific but REUSABLE — multiple questions about the same feature MUST get the same topic label.
+  - GOOD: "PTB splitCoins", "Move Generics", "Kiosk Transfer Policies", "gRPC API", "GraphQL Pagination", "Coin and Balance Operations", "Sui CLI Errors", "Object Ownership", "DeepBook AMM"
+  - BAD (too unique per question): "splitCoins type error on line 42", "how to query checkpoint 12345", "my wallet shows wrong balance"
+  - BAD (too broad): "SDK", "Errors", "Transactions", "Questions", "General"
+  - Think of the topic as a docs page title — specific enough to be useful, general enough that 2-10 related questions share it.
+  - Use consistent naming across questions: if one question gets "Move Generics", another about generic type constraints should also get "Move Generics", not "Generic Type Parameters".
 - theme: the exact name of one of your themes (must match a name in the themes array) — used only for the high-level summary
 - index: the zero-based index of the question in the input question_answers array
-- confidence: classify the Kapa bot's answer as "certain" or "uncertain" using the criteria below
-
-CONFIDENCE CLASSIFICATION RULES — apply these strictly:
-
-"certain" means the bot gave a substantive, specific answer grounded in documentation. Indicators:
-- Cites specific pages, code examples, API methods, CLI commands, or configuration values
-- Provides step-by-step instructions or working code snippets
-- References concrete docs content (e.g. "according to the Move documentation…")
-- The answer directly resolves the user's question with actionable information
-
-"uncertain" means the bot's answer is vague, hedged, partially wrong, or acknowledges gaps. Indicators:
-- Uses hedging language: "I'm not sure", "I don't have information", "I couldn't find", "based on my understanding", "it might be", "you may need to check"
-- Gives generic advice instead of specific documentation references ("try checking the docs", "consult the API reference")
-- Acknowledges the topic is not covered: "this isn't documented", "I don't see this in my sources"
-- Provides a partial answer that doesn't fully resolve the question
-- The answer is off-topic, a greeting/pleasantry, or not a real answer
-- The bot suggests the user ask elsewhere or file an issue
-- The answer contradicts itself or provides multiple conflicting options without resolution
-
-When in doubt, classify as "uncertain" — it is better to flag a potentially weak answer than to miss a documentation gap.
 """.strip()
 
 KAPA_SYNTHESIS_SYSTEM = """
@@ -204,12 +186,8 @@ KAPA_CHUNK_SCHEMA = {
                     "topic": {"type": "string"},
                     "theme": {"type": "string"},
                     "index": {"type": "integer"},
-                    "confidence": {
-                        "type": "string",
-                        "enum": ["certain", "uncertain"],
-                    },
                 },
-                "required": ["topic", "theme", "index", "confidence"],
+                "required": ["topic", "theme", "index"],
                 "additionalProperties": False,
             },
         },
@@ -560,7 +538,7 @@ class ClaudePipeline:
                         "question": (item.get("question") or "")[:300],
                         "answer_snippet": (item.get("answer") or "")[:200],
                         "thread_id": item.get("thread_id"),
-                        "confidence": cc.get("confidence", "uncertain"),
+                        "confidence": "uncertain" if item.get("is_uncertain") else "certain",
                     })
 
         synthesis = self._structured_json(
@@ -579,74 +557,40 @@ class ClaudePipeline:
         synthesis["classified_questions"] = all_classified
         return synthesis
 
-    def normalize_topics(self, raw_topics: list[str]) -> dict[str, str]:
+    @staticmethod
+    def normalize_topics(raw_topics: list[str]) -> dict[str, str]:
         """Map raw per-question topic labels to normalized canonical names.
 
-        Only merges topics that are truly about the same specific feature.
-        Returns a dict mapping each raw topic → canonical name.
+        Uses fast string normalization — no LLM call. Merges labels that
+        are identical after lowercasing, stripping, and collapsing whitespace.
+        Picks the most common casing as canonical.
         """
         if not raw_topics:
             return {}
 
-        # Deduplicate while preserving order for the prompt
-        unique = list(dict.fromkeys(raw_topics))
+        import re
 
-        # If few enough topics, no LLM call needed
-        if len(unique) <= 3:
-            return {t: t for t in unique}
+        def _normalize_key(s: str) -> str:
+            s = s.strip().lower()
+            s = re.sub(r"\s+", " ", s)
+            return s
 
-        schema = {
-            "type": "object",
-            "properties": {
-                "mappings": {
-                    "type": "array",
-                    "items": {
-                        "type": "object",
-                        "properties": {
-                            "raw": {"type": "string"},
-                            "canonical": {"type": "string"},
-                        },
-                        "required": ["raw", "canonical"],
-                        "additionalProperties": False,
-                    },
-                },
-            },
-            "required": ["mappings"],
-            "additionalProperties": False,
-        }
+        # Group raw labels by normalized key, track frequency of each casing
+        groups: dict[str, dict[str, int]] = {}
+        for raw in raw_topics:
+            key = _normalize_key(raw)
+            if key not in groups:
+                groups[key] = {}
+            groups[key][raw] = groups[key].get(raw, 0) + 1
 
-        system = (
-            "You normalize a list of topic labels from a developer Q&A system.\n\n"
-            "RULES:\n"
-            "- Only merge two labels if they refer to the EXACT SAME specific feature or concept.\n"
-            "  MERGE: 'PTB splitCoins' + 'PTB SplitCoins errors' → 'PTB splitCoins'\n"
-            "  MERGE: 'Move generics' + 'Move generic type constraints' → 'Move Generic Type Constraints'\n"
-            "  DO NOT MERGE: 'gRPC getCheckpoint' + 'GraphQL pagination' (different APIs)\n"
-            "  DO NOT MERGE: 'Coin balance queries' + 'PTB coin operations' (different contexts)\n"
-            "  DO NOT MERGE: 'Wallet setup' + 'Wallet balance display' (different tasks)\n"
-            "- The canonical name should be the most descriptive version of the label.\n"
-            "- Keep labels specific. Do NOT generalize into broad categories.\n"
-            "- Every raw label must appear exactly once in the output.\n"
-            "- If a label is unique, map it to itself.\n"
-        )
+        # For each group, pick the most frequent casing as canonical
+        canonical_map: dict[str, str] = {}
+        for key, variants in groups.items():
+            canonical = max(variants, key=lambda v: variants[v])
+            canonical_map[key] = canonical
 
-        result = self._structured_json(
-            system_prompt=system,
-            payload={"topics": unique},
-            schema=schema,
-            max_tokens=4000,
-        )
-
-        mapping: dict[str, str] = {}
-        for item in result.get("mappings", []):
-            mapping[item["raw"]] = item["canonical"]
-
-        # Ensure all raw topics have a mapping (fallback to self)
-        for t in unique:
-            if t not in mapping:
-                mapping[t] = t
-
-        return mapping
+        # Build the final mapping: raw → canonical
+        return {raw: canonical_map[_normalize_key(raw)] for raw in dict.fromkeys(raw_topics)}
 
     def synthesize(
         self,
