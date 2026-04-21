@@ -395,7 +395,7 @@ section + section { border-top: 1px solid var(--border); }
               </div>
               {% if q.thread_id %}
               <div style="margin-top:6px;">
-                <a href="https://app.kapa.ai/threads/{{ q.thread_id }}" target="_blank" rel="noopener"
+                <a href="https://app.kapa.ai/{{ kapa_raw.project_id }}/conversations/{{ q.thread_id }}" target="_blank" rel="noopener"
                    style="font-size:11px;color:var(--accent);text-decoration:none;font-family:var(--font-mono);letter-spacing:0.3px;">
                   View thread &rarr;
                 </a>
