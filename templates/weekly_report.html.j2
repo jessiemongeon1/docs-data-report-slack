@@ -379,41 +379,39 @@ section + section { border-top: 1px solid var(--border); }
   </div>
   {% endmacro %}
 
-  {# ── Developer Topics ── #}
+  {# ── Developer Topics (grouped by per-question topic label) ── #}
   <section id="themes">
     <div class="section-header">
       <div class="section-label">Kapa</div>
       <h2 class="section-title">Developer Topics</h2>
-      <p class="section-desc">{{ kapa_analysis.summary }} Each topic shows how many questions received confident answers vs uncertain ones.</p>
+      <p class="section-desc">{{ kapa_analysis.summary }} Questions grouped by specific topic, with confident vs uncertain answer breakdown.</p>
     </div>
     <div class="thread-list">
-      {% for t in final_analysis.themes %}
-      {% set questions = theme_conversations.get(t.name, []) if theme_conversations else [] %}
+      {% for t in topic_stats %}
+      {% set questions = topic_questions.get(t.name, []) if topic_questions else [] %}
       {% set uncertain_qs = questions | selectattr("confidence", "equalto", "uncertain") | list %}
       {% set certain_qs = questions | selectattr("confidence", "equalto", "certain") | list %}
       <div class="thread-card">
         <div class="thread-meta">
           <span class="thread-num">#{{ loop.index }}</span>
-          <span class="thread-count">{{ t.evidence_count }} questions</span>
-          <span class="tag">{{ t.priority }} priority</span>
+          <span class="thread-count">{{ t.evidence_count }} question{{ 's' if t.evidence_count != 1 else '' }}</span>
         </div>
         <h4>{{ t.name }}</h4>
-        <p class="summary">{{ t.why_it_matters }}</p>
 
         {# Confidence breakdown bar #}
-        {% set total = (t.certain_count or 0) + (t.uncertain_count or 0) %}
+        {% set total = t.certain_count + t.uncertain_count %}
         {% if total > 0 %}
-        {% set certain_pct = ((t.certain_count or 0) * 100 / total) | round | int %}
+        {% set certain_pct = (t.certain_count * 100 / total) | round | int %}
         {% set uncertain_pct = 100 - certain_pct %}
-        <div style="margin-top:12px;display:flex;align-items:center;gap:12px;">
+        <div style="margin-top:10px;display:flex;align-items:center;gap:12px;">
           <div style="flex:1;height:6px;border-radius:3px;background:var(--surface-3);overflow:hidden;display:flex;">
             <div style="width:{{ certain_pct }}%;background:var(--green);"></div>
             <div style="width:{{ uncertain_pct }}%;background:var(--yellow);"></div>
           </div>
           <div style="font-size:11px;font-family:var(--font-mono);color:var(--text-muted);white-space:nowrap;">
-            <span style="color:var(--green);">{{ t.certain_count or 0 }} certain</span>
+            <span style="color:var(--green);">{{ t.certain_count }} certain</span>
             &middot;
-            <span style="color:var(--yellow);">{{ t.uncertain_count or 0 }} uncertain</span>
+            <span style="color:var(--yellow);">{{ t.uncertain_count }} uncertain</span>
           </div>
         </div>
         {% endif %}

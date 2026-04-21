@@ -21,21 +21,21 @@ You analyze one raw chunk of Kapa question/answer data.
 This chunk is only part of the full dataset.
 Do not assume it represents the whole reporting period.
 
-TOPIC CLASSIFICATION — be as specific as possible:
-- Name topics after the specific feature, API, concept, or task the question is about.
-- GOOD topic names: "PTB TransactionBlock Construction", "Move Generic Type Constraints", "Kiosk Transfer Policies", "sui client publish Errors", "GraphQL Filtering by Owner"
-- BAD topic names (too broad): "SDK Issues", "Transaction Errors", "Move Development", "gRPC/JSON-RPC", "Getting Started"
-- A question about gRPC must be in a gRPC-specific topic. A question about coin transfers must NOT be grouped with gRPC just because both involve APIs.
-- Only group questions together if they are about the same specific feature or task. When in doubt, keep topics narrow — the synthesis step will merge related topics later.
-- Return at most 8 topics per chunk. It is better to have many specific topics than few broad ones.
-
-For each topic:
-- evidence_count: exact number of questions in this topic.
+For each theme you identify:
+- Count the exact number of questions that support it (evidence_count must reflect actual Q&A items in the chunk).
+- Prefer recurring issues over one-off issues.
+- Return at most 8 themes. Merge minor ones into the closest major theme rather than listing them separately.
 - chunk_summary: 1 sentence only.
 - insight and recommended_action: 1 sentence each, under 20 words.
 
-You MUST also return a classified_questions array that maps every question in the chunk to one of your topic names. For each question include:
-- theme: the exact name of one of your topics (must match a name in the themes array)
+You MUST also return a classified_questions array that maps every question in the chunk. For each question include:
+- topic: a SHORT, SPECIFIC label for what this individual question is about. This is PER-QUESTION, not per-theme.
+  RULES for topic labels:
+  - Name the specific feature, API, tool, or concept: "PTB splitCoins", "Move generic type constraints", "Kiosk transfer policies", "gRPC getCheckpoint", "GraphQL pagination"
+  - Do NOT use broad/vague labels: "SDK Issues", "Transaction Errors", "Move Development", "Getting Started", "General Questions"
+  - Two questions should only share a topic label if they are genuinely about the same specific thing
+  - The topic label does NOT need to match any theme name — themes are for high-level summary, topic labels are for precise per-question grouping
+- theme: the exact name of one of your themes (must match a name in the themes array) — used only for the high-level summary
 - index: the zero-based index of the question in the input question_answers array
 - confidence: classify the Kapa bot's answer as "certain" or "uncertain" using the criteria below
 
@@ -201,6 +201,7 @@ KAPA_CHUNK_SCHEMA = {
             "items": {
                 "type": "object",
                 "properties": {
+                    "topic": {"type": "string"},
                     "theme": {"type": "string"},
                     "index": {"type": "integer"},
                     "confidence": {
@@ -208,7 +209,7 @@ KAPA_CHUNK_SCHEMA = {
                         "enum": ["certain", "uncertain"],
                     },
                 },
-                "required": ["theme", "index", "confidence"],
+                "required": ["topic", "theme", "index", "confidence"],
                 "additionalProperties": False,
             },
         },
@@ -554,6 +555,7 @@ class ClaudePipeline:
                 if 0 <= idx < len(chunk_items):
                     item = chunk_items[idx]
                     all_classified.append({
+                        "topic": cc.get("topic") or cc["theme"],
                         "theme": cc["theme"],
                         "question": (item.get("question") or "")[:300],
                         "answer_snippet": (item.get("answer") or "")[:200],
@@ -576,6 +578,75 @@ class ClaudePipeline:
         # (e.g. the HTML report) can show full question detail per theme.
         synthesis["classified_questions"] = all_classified
         return synthesis
+
+    def normalize_topics(self, raw_topics: list[str]) -> dict[str, str]:
+        """Map raw per-question topic labels to normalized canonical names.
+
+        Only merges topics that are truly about the same specific feature.
+        Returns a dict mapping each raw topic → canonical name.
+        """
+        if not raw_topics:
+            return {}
+
+        # Deduplicate while preserving order for the prompt
+        unique = list(dict.fromkeys(raw_topics))
+
+        # If few enough topics, no LLM call needed
+        if len(unique) <= 3:
+            return {t: t for t in unique}
+
+        schema = {
+            "type": "object",
+            "properties": {
+                "mappings": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "raw": {"type": "string"},
+                            "canonical": {"type": "string"},
+                        },
+                        "required": ["raw", "canonical"],
+                        "additionalProperties": False,
+                    },
+                },
+            },
+            "required": ["mappings"],
+            "additionalProperties": False,
+        }
+
+        system = (
+            "You normalize a list of topic labels from a developer Q&A system.\n\n"
+            "RULES:\n"
+            "- Only merge two labels if they refer to the EXACT SAME specific feature or concept.\n"
+            "  MERGE: 'PTB splitCoins' + 'PTB SplitCoins errors' → 'PTB splitCoins'\n"
+            "  MERGE: 'Move generics' + 'Move generic type constraints' → 'Move Generic Type Constraints'\n"
+            "  DO NOT MERGE: 'gRPC getCheckpoint' + 'GraphQL pagination' (different APIs)\n"
+            "  DO NOT MERGE: 'Coin balance queries' + 'PTB coin operations' (different contexts)\n"
+            "  DO NOT MERGE: 'Wallet setup' + 'Wallet balance display' (different tasks)\n"
+            "- The canonical name should be the most descriptive version of the label.\n"
+            "- Keep labels specific. Do NOT generalize into broad categories.\n"
+            "- Every raw label must appear exactly once in the output.\n"
+            "- If a label is unique, map it to itself.\n"
+        )
+
+        result = self._structured_json(
+            system_prompt=system,
+            payload={"topics": unique},
+            schema=schema,
+            max_tokens=4000,
+        )
+
+        mapping: dict[str, str] = {}
+        for item in result.get("mappings", []):
+            mapping[item["raw"]] = item["canonical"]
+
+        # Ensure all raw topics have a mapping (fallback to self)
+        for t in unique:
+            if t not in mapping:
+                mapping[t] = t
+
+        return mapping
 
     def synthesize(
         self,

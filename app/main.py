@@ -229,11 +229,40 @@ def process_site(
             )
             print(f"Fact-checked {checked_count}/{len(recommendations)} recommendations")
 
-    # Group classified questions by final theme name. Each question keeps its
-    # "confidence" field so the template can split certain vs uncertain display.
+    # Group classified questions by their per-question topic label (not the
+    # LLM's high-level theme). This gives precise, accurate grouping.
     classified = kapa_analysis.get("classified_questions", [])
-    final_themes = [t["name"] for t in final_analysis.get("themes", [])]
-    theme_conversations: dict[str, list[dict[str, Any]]] = {t: [] for t in final_themes}
+
+    # Normalize topic labels: merge only true duplicates (e.g. different
+    # casing or minor wording variants of the same specific feature).
+    raw_topics = [c.get("topic") or c.get("theme", "Other") for c in classified]
+    print(f"Normalizing {len(set(raw_topics))} unique topic labels")
+    topic_mapping = claude.normalize_topics(raw_topics)
+
+    # Apply normalized names
+    for c in classified:
+        raw = c.get("topic") or c.get("theme", "Other")
+        c["topic"] = topic_mapping.get(raw, raw)
+
+    # Group by normalized topic, sorted by total count descending
+    topic_questions: dict[str, list[dict[str, Any]]] = {}
+    for c in classified:
+        topic_questions.setdefault(c["topic"], []).append(c)
+    topic_questions = dict(
+        sorted(topic_questions.items(), key=lambda kv: len(kv[1]), reverse=True)
+    )
+
+    # Build topic stats for the template (certain/uncertain counts)
+    topic_stats: list[dict[str, Any]] = []
+    for topic_name, qs in topic_questions.items():
+        certain = sum(1 for q in qs if q.get("confidence") == "certain")
+        uncertain = len(qs) - certain
+        topic_stats.append({
+            "name": topic_name,
+            "evidence_count": len(qs),
+            "certain_count": certain,
+            "uncertain_count": uncertain,
+        })
 
     # Also group by thread_id to detect multi-question conversations
     thread_questions: dict[str, list[dict[str, Any]]] = {}
@@ -242,40 +271,9 @@ def process_site(
         if tid:
             thread_questions.setdefault(tid, []).append(c)
 
-    for c in classified:
-        chunk_theme = c.get("theme", "").lower()
-        matched = False
-        # Exact match
-        for ft in final_themes:
-            if ft.lower() == chunk_theme:
-                theme_conversations[ft].append(c)
-                matched = True
-                break
-        if matched:
-            continue
-        # Substring match (chunk theme contains final theme or vice versa)
-        for ft in final_themes:
-            if ft.lower() in chunk_theme or chunk_theme in ft.lower():
-                theme_conversations[ft].append(c)
-                matched = True
-                break
-        if matched:
-            continue
-        # Word-overlap match: pick the final theme sharing the most words
-        chunk_words = set(chunk_theme.split())
-        best_theme = final_themes[0] if final_themes else None
-        best_overlap = 0
-        for ft in final_themes:
-            overlap = len(chunk_words & set(ft.lower().split()))
-            if overlap > best_overlap:
-                best_overlap = overlap
-                best_theme = ft
-        if best_theme:
-            theme_conversations[best_theme].append(c)
-
     # Tag each conversation with how many questions are in its thread
-    for theme_name, convos in theme_conversations.items():
-        for c in convos:
+    for qs in topic_questions.values():
+        for c in qs:
             tid = c.get("thread_id") or ""
             c["thread_question_count"] = len(thread_questions.get(tid, [])) if tid else 1
 
@@ -301,7 +299,8 @@ def process_site(
             "plausible_raw": plausible_raw,
             "kapa_raw": kapa_raw,
             "kapa_user_stats": kapa_user_stats,
-            "theme_conversations": theme_conversations,
+            "topic_questions": topic_questions,
+            "topic_stats": topic_stats,
             "plausible_analysis": plausible_analysis,
             "kapa_analysis": kapa_analysis,
             "final_analysis": final_analysis,
